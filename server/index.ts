@@ -5,7 +5,7 @@ const httpServer = createServer();
 
 const io = new Server(httpServer, {
     cors: {
-        origin: "http://localhost:3000",
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
         methods: ["GET", "POST"],
     },
 });
@@ -29,15 +29,13 @@ io.on("connection", (socket) => {
 
             socket.join(meetingId);
 
-            const room =
-                io.sockets.adapter.rooms.get(meetingId);
+            const room = io.sockets.adapter.rooms.get(meetingId);
 
             const existingUsers = room
                 ? Array.from(room)
                     .filter((id) => id !== socket.id)
                     .map((id) => {
-                        const userSocket =
-                            io.sockets.sockets.get(id);
+                        const userSocket = io.sockets.sockets.get(id);
 
                         return {
                             socketId: id,
@@ -48,22 +46,15 @@ io.on("connection", (socket) => {
                     })
                 : [];
 
-            socket.emit(
-                "existing-users",
-                existingUsers
-            );
+            socket.emit("existing-users", existingUsers);
 
-            socket.to(meetingId).emit(
-                "user-joined",
-                {
-                    socketId: socket.id,
-                    participantName,
-                }
-            );
+            socket.to(meetingId).emit("user-joined", {
+                socketId: socket.id,
+                participantName,
+            });
 
             socket.data.meetingId = meetingId;
-            socket.data.participantName =
-                participantName;
+            socket.data.participantName = participantName;
         }
     );
 
@@ -117,40 +108,33 @@ io.on("connection", (socket) => {
             target: string;
             candidate: unknown;
         }) => {
-            io.to(target).emit(
-                "ice-candidate",
-                {
-                    sender: socket.id,
-                    candidate,
-                }
-            );
+            io.to(target).emit("ice-candidate", {
+                sender: socket.id,
+                candidate,
+            });
         }
     );
 
     // DISCONNECT
     socket.on("disconnect", () => {
-        console.log(
-            "User disconnected:",
-            socket.id
-        );
+        console.log("User disconnected:", socket.id);
 
-        const meetingId =
-            socket.data?.meetingId;
+        const meetingId = socket.data?.meetingId;
 
         if (meetingId) {
-            socket
-                .to(meetingId)
-                .emit("user-left", {
-                    socketId: socket.id,
-                });
+            socket.to(meetingId).emit("user-left", {
+                socketId: socket.id,
+            });
         }
     });
 });
 
-const PORT = 4000;
+// Use Render's PORT in production.
+// Fall back to 4000 for local development.
+const PORT = Number(process.env.PORT) || 4000;
 
 httpServer.listen(PORT, () => {
     console.log(
-        `Socket.IO server running on http://localhost:${PORT}`
+        `Socket.IO server running on port ${PORT}`
     );
 });
