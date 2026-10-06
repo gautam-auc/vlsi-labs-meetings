@@ -28,7 +28,9 @@ type MediaStateMessage = {
     screenSharing: boolean;
 };
 
-const SOCKET_URL = "http://localhost:4000";
+const SOCKET_URL =
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    "http://localhost:4000";
 
 export default function MeetingRoom({
     meetingId,
@@ -1325,88 +1327,88 @@ export default function MeetingRoom({
        STOP SCREEN SHARING
     ========================================================= */
 
-   const stopScreenSharing = async () => {
-  const screenStream =
-    screenStreamRef.current;
+    const stopScreenSharing = async () => {
+        const screenStream =
+            screenStreamRef.current;
 
-  if (screenStream) {
-    screenStream.getTracks().forEach((track) => {
-      track.stop();
-    });
+        if (screenStream) {
+            screenStream.getTracks().forEach((track) => {
+                track.stop();
+            });
 
-    screenStreamRef.current = null;
-  }
-
-  /*
-   * Find the current camera track.
-   */
-  const cameraStream =
-    localStreamRef.current;
-
-  const cameraTrack =
-    cameraStream
-      ?.getVideoTracks()
-      .find(
-        (track) =>
-          track.readyState === "live"
-      );
-
-  /*
-   * Restore camera OR remove video.
-   */
-  const senders = Object.values(
-    videoSendersRef.current
-  );
-
-  await Promise.all(
-    senders.map(async (sender) => {
-      try {
-        if (
-          cameraEnabledRef.current &&
-          cameraTrack
-        ) {
-          await sender.replaceTrack(
-            cameraTrack
-          );
-        } else {
-          await sender.replaceTrack(null);
+            screenStreamRef.current = null;
         }
-      } catch (error) {
-        console.error(
-          "Could not restore video after screen sharing:",
-          error
+
+        /*
+         * Find the current camera track.
+         */
+        const cameraStream =
+            localStreamRef.current;
+
+        const cameraTrack =
+            cameraStream
+                ?.getVideoTracks()
+                .find(
+                    (track) =>
+                        track.readyState === "live"
+                );
+
+        /*
+         * Restore camera OR remove video.
+         */
+        const senders = Object.values(
+            videoSendersRef.current
         );
-      }
-    })
-  );
 
-  screenSharingRef.current = false;
-  setIsScreenSharing(false);
+        await Promise.all(
+            senders.map(async (sender) => {
+                try {
+                    if (
+                        cameraEnabledRef.current &&
+                        cameraTrack
+                    ) {
+                        await sender.replaceTrack(
+                            cameraTrack
+                        );
+                    } else {
+                        await sender.replaceTrack(null);
+                    }
+                } catch (error) {
+                    console.error(
+                        "Could not restore video after screen sharing:",
+                        error
+                    );
+                }
+            })
+        );
 
-  /*
-   * Restore our own preview.
-   */
-  if (
-    cameraEnabledRef.current &&
-    cameraStream &&
-    cameraTrack
-  ) {
-    setLocalPreviewStream(
-      cameraStream
-    );
-  } else {
-    setLocalPreviewStream(null);
-  }
+        screenSharingRef.current = false;
+        setIsScreenSharing(false);
 
-  /*
-   * Tell other participants.
-   */
-  sendMediaState({
-    cameraEnabled:
-      cameraEnabledRef.current,
-    screenSharing: false,
-  });
-};
+        /*
+         * Restore our own preview.
+         */
+        if (
+            cameraEnabledRef.current &&
+            cameraStream &&
+            cameraTrack
+        ) {
+            setLocalPreviewStream(
+                cameraStream
+            );
+        } else {
+            setLocalPreviewStream(null);
+        }
+
+        /*
+         * Tell other participants.
+         */
+        sendMediaState({
+            cameraEnabled:
+                cameraEnabledRef.current,
+            screenSharing: false,
+        });
+    };
 
     /* =========================================================
        SCREEN BUTTON
