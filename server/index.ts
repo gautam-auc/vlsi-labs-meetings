@@ -1,11 +1,28 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
-const httpServer = createServer();
+const httpServer = createServer((req, res) => {
+    if (req.url === "/" || req.url === "/health") {
+        res.writeHead(200, {
+            "Content-Type": "text/plain",
+        });
+
+        res.end("VLSI Labs Meetings Socket Server is running.");
+        return;
+    }
+
+    res.writeHead(404, {
+        "Content-Type": "text/plain",
+    });
+
+    res.end("Not Found");
+});
 
 const io = new Server(httpServer, {
     cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        origin:
+            process.env.FRONTEND_URL ||
+            "http://localhost:3000",
         methods: ["GET", "POST"],
     },
 });
@@ -13,7 +30,6 @@ const io = new Server(httpServer, {
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    // JOIN ROOM
     socket.on(
         "join-room",
         ({
@@ -29,36 +45,45 @@ io.on("connection", (socket) => {
 
             socket.join(meetingId);
 
-            const room = io.sockets.adapter.rooms.get(meetingId);
+            const room =
+                io.sockets.adapter.rooms.get(meetingId);
 
             const existingUsers = room
                 ? Array.from(room)
-                    .filter((id) => id !== socket.id)
-                    .map((id) => {
-                        const userSocket = io.sockets.sockets.get(id);
+                      .filter((id) => id !== socket.id)
+                      .map((id) => {
+                          const userSocket =
+                              io.sockets.sockets.get(id);
 
-                        return {
-                            socketId: id,
-                            participantName:
-                                userSocket?.data?.participantName ||
-                                "Participant",
-                        };
-                    })
+                          return {
+                              socketId: id,
+                              participantName:
+                                  userSocket?.data
+                                      ?.participantName ||
+                                  "Participant",
+                          };
+                      })
                 : [];
 
-            socket.emit("existing-users", existingUsers);
+            socket.emit(
+                "existing-users",
+                existingUsers
+            );
 
-            socket.to(meetingId).emit("user-joined", {
-                socketId: socket.id,
-                participantName,
-            });
+            socket.to(meetingId).emit(
+                "user-joined",
+                {
+                    socketId: socket.id,
+                    participantName,
+                }
+            );
 
             socket.data.meetingId = meetingId;
-            socket.data.participantName = participantName;
+            socket.data.participantName =
+                participantName;
         }
     );
 
-    // WEBRTC OFFER
     socket.on(
         "offer",
         ({
@@ -81,7 +106,6 @@ io.on("connection", (socket) => {
         }
     );
 
-    // WEBRTC ANSWER
     socket.on(
         "answer",
         ({
@@ -98,7 +122,6 @@ io.on("connection", (socket) => {
         }
     );
 
-    // ICE CANDIDATE
     socket.on(
         "ice-candidate",
         ({
@@ -108,33 +131,45 @@ io.on("connection", (socket) => {
             target: string;
             candidate: unknown;
         }) => {
-            io.to(target).emit("ice-candidate", {
-                sender: socket.id,
-                candidate,
-            });
+            io.to(target).emit(
+                "ice-candidate",
+                {
+                    sender: socket.id,
+                    candidate,
+                }
+            );
         }
     );
 
-    // DISCONNECT
     socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
+        console.log(
+            "User disconnected:",
+            socket.id
+        );
 
-        const meetingId = socket.data?.meetingId;
+        const meetingId =
+            socket.data?.meetingId;
 
         if (meetingId) {
-            socket.to(meetingId).emit("user-left", {
-                socketId: socket.id,
-            });
+            socket.to(meetingId).emit(
+                "user-left",
+                {
+                    socketId: socket.id,
+                }
+            );
         }
     });
 });
 
-// Use Render's PORT in production.
-// Fall back to 4000 for local development.
-const PORT = Number(process.env.PORT) || 4000;
+const PORT =
+    Number(process.env.PORT) || 4000;
 
-httpServer.listen(PORT, () => {
-    console.log(
-        `Socket.IO server running on port ${PORT}`
-    );
-});
+httpServer.listen(
+    PORT,
+    "0.0.0.0",
+    () => {
+        console.log(
+            `Socket.IO server running on port ${PORT}`
+        );
+    }
+);
