@@ -30,7 +30,9 @@ type MediaStateMessage = {
 
 const SOCKET_URL =
     process.env.NEXT_PUBLIC_SOCKET_URL ||
-    "http://localhost:4000";
+    (process.env.NODE_ENV === "development"
+        ? "http://localhost:4000"
+        : "https://vlsi-labs-meetings.onrender.com");
 
 export default function MeetingRoom({
     meetingId,
