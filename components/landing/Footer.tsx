@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Footer() {
     return (
         <footer className="border-t border-slate-200 bg-white">
@@ -5,7 +7,7 @@ export default function Footer() {
                 <div className="flex flex-col justify-between gap-8 sm:flex-row">
                     {/* Brand */}
                     <div>
-                        <a href="/" className="flex items-center gap-3">
+                        <Link href="/" className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
                                 V
                             </div>
@@ -19,7 +21,7 @@ export default function Footer() {
                                     Meetings
                                 </p>
                             </div>
-                        </a>
+                        </Link>
 
                         <p className="mt-4 text-sm text-slate-500">
                             Meet. Collaborate. Work.

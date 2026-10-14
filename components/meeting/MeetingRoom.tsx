@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import VideoTile from "./VideoTile";
 import MeetingControls from "./MeetingControls";
@@ -37,6 +38,7 @@ const SOCKET_URL =
 export default function MeetingRoom({
     meetingId,
 }: MeetingRoomProps) {
+    const router = useRouter();
     /* =========================================================
        BASIC STATE
     ========================================================= */
@@ -1490,8 +1492,7 @@ export default function MeetingRoom({
             pendingIceCandidatesRef.current =
                 {};
 
-            window.location.href =
-                "/dashboard";
+            router.push("/dashboard");
         };
 
     /* =========================================================

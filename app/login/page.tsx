@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function LoginPage() {
     return (
         <main className="min-h-screen bg-slate-50">
@@ -6,7 +8,7 @@ export default function LoginPage() {
                 {/* Left branding panel */}
                 <section className="hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
                     <div>
-                        <a href="/" className="flex items-center gap-3">
+                        <Link href="/" className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
                                 V
                             </div>
@@ -15,7 +17,7 @@ export default function LoginPage() {
                                 <p className="font-bold">VLSI Labs</p>
                                 <p className="text-xs text-slate-400">Meetings</p>
                             </div>
-                        </a>
+                        </Link>
                     </div>
 
                     <div className="max-w-lg">
@@ -44,7 +46,7 @@ export default function LoginPage() {
 
                         {/* Mobile logo */}
                         <div className="mb-10 lg:hidden">
-                            <a href="/" className="flex items-center gap-3">
+                            <Link href="/" className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">
                                     V
                                 </div>
@@ -58,7 +60,7 @@ export default function LoginPage() {
                                         Meetings
                                     </p>
                                 </div>
-                            </a>
+                            </Link>
                         </div>
 
                         <div>
@@ -131,7 +133,7 @@ export default function LoginPage() {
 
                         {/* Register */}
                         <p className="mt-8 text-center text-sm text-slate-500">
-                            Don't have an account?{" "}
+                            Don&apos;t have an account?{" "}
                             <a
                                 href="/register"
                                 className="font-semibold text-indigo-600 hover:text-indigo-700"
@@ -141,12 +143,12 @@ export default function LoginPage() {
                         </p>
 
                         <div className="mt-8 border-t border-slate-200 pt-6 text-center">
-                            <a
+                            <Link
                                 href="/"
                                 className="text-sm font-medium text-slate-500 hover:text-slate-900"
                             >
                                 ← Back to VLSI Labs Meetings
-                            </a>
+                            </Link>
                         </div>
 
                     </div>

@@ -17,7 +17,7 @@ export default function CTA() {
                     </h2>
 
                     <p className="mx-auto mt-6 max-w-xl text-slate-400">
-                        Start organizing your team's meetings, conversations and follow-up
+                        Start organizing your team&apos;s meetings, conversations and follow-up
                         work in one place.
                     </p>
 
