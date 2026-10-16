@@ -1,116 +1,195 @@
+"use client";
+
+import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import ThemeToggle from "../../components/ThemeToggle";
 
 export default function LoginPage() {
+    const router = useRouter();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+
+    function handleSubmit(e: FormEvent) {
+        e.preventDefault();
+        setIsLoading(true);
+        if (email) {
+            localStorage.setItem("vlsilabs_user_email", email);
+        }
+        setTimeout(() => {
+            router.push("/dashboard");
+        }, 400);
+    }
+
+    function handleDemoLogin() {
+        setEmail("gautam@vlsilabs.ai");
+        setPassword("••••••••••••");
+        setIsLoading(true);
+        localStorage.setItem("vlsilabs_user_email", "gautam@vlsilabs.ai");
+        localStorage.setItem("vlsilabs_user_name", "A. Gautam");
+        setTimeout(() => {
+            router.push("/dashboard");
+        }, 300);
+    }
+
     return (
-        <main className="min-h-screen bg-slate-50">
+        <main className="min-h-screen bg-[var(--background)] text-[var(--text)] transition-colors duration-200">
             <div className="grid min-h-screen lg:grid-cols-2">
 
                 {/* Left branding panel */}
-                <section className="hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-                    <div>
-                        <Link href="/" className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold">
+                <section className="relative hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between overflow-hidden">
+                    {/* Glowing background effects */}
+                    <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-20 -right-20 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
+
+                    <div className="relative z-10">
+                        <Link href="/" className="inline-flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-lg shadow-blue-500/30">
                                 V
                             </div>
 
                             <div>
-                                <p className="font-bold">VLSI Labs</p>
-                                <p className="text-xs text-slate-400">Meetings</p>
+                                <p className="font-bold text-base tracking-tight">VLSI Labs</p>
+                                <p className="text-xs text-slate-400">Engineering Collaboration</p>
                             </div>
                         </Link>
                     </div>
 
-                    <div className="max-w-lg">
-                        <p className="text-sm font-semibold uppercase tracking-wider text-indigo-400">
-                            VLSI Labs Meetings
-                        </p>
+                    <div className="relative z-10 max-w-lg">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3.5 py-1 text-xs font-semibold text-blue-400 mb-6">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            Next-Gen Semiconductor Workspace
+                        </div>
 
-                        <h1 className="mt-5 text-5xl font-bold leading-tight">
-                            Bring your team together.
+                        <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
+                            High-frequency meetings for high-velocity teams.
                         </h1>
 
-                        <p className="mt-6 text-lg leading-8 text-slate-400">
-                            Schedule meetings, collaborate with your team and keep your
-                            work moving from one focused workspace.
+                        <p className="mt-6 text-base leading-7 text-slate-300">
+                            Instant WebRTC video channels, interactive circuit and architecture review, screen broadcasting, and persistent meeting tracking.
                         </p>
+
+                        <div className="mt-8 space-y-3">
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold">✓</span>
+                                Zero-latency peer signaling over WebSockets
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold">✓</span>
+                                Enterprise-grade encryption & security standards
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-slate-300">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold">✓</span>
+                                Seamless Light and Night mode workspaces
+                            </div>
+                        </div>
                     </div>
 
-                    <p className="text-sm text-slate-500">
-                        Internal collaboration platform
-                    </p>
+                    <div className="relative z-10 flex items-center justify-between text-xs text-slate-500 border-t border-slate-800/80 pt-6">
+                        <p>© 2026 VLSI Labs Inc.</p>
+                        <p>Internal Engineering Platform</p>
+                    </div>
                 </section>
 
-                {/* Login panel */}
-                <section className="flex items-center justify-center px-6 py-12">
-                    <div className="w-full max-w-md">
-
-                        {/* Mobile logo */}
-                        <div className="mb-10 lg:hidden">
-                            <Link href="/" className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">
+                {/* Right login panel */}
+                <section className="relative flex flex-col justify-between px-6 py-8 sm:px-12 lg:px-16">
+                    {/* Header bar with Theme Toggle */}
+                    <div className="flex items-center justify-between">
+                        <div className="lg:hidden">
+                            <Link href="/" className="flex items-center gap-2.5">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-md shadow-blue-500/20">
                                     V
                                 </div>
-
-                                <div>
-                                    <p className="font-bold text-slate-900">
-                                        VLSI Labs
-                                    </p>
-
-                                    <p className="text-xs text-slate-500">
-                                        Meetings
-                                    </p>
-                                </div>
+                                <span className="font-bold text-sm text-slate-900 dark:text-white">VLSI Labs</span>
                             </Link>
                         </div>
 
+                        <div className="ml-auto flex items-center gap-3">
+                            <ThemeToggle />
+                            <Link
+                                href="/"
+                                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition"
+                            >
+                                Home
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="mx-auto w-full max-w-md my-auto py-10">
                         <div>
-                            <p className="text-sm font-semibold text-indigo-600">
-                                Welcome back
+                            <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                Secure Access
                             </p>
 
-                            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-                                Sign in to your workspace
+                            <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                                Sign in to workspace
                             </h2>
 
-                            <p className="mt-3 text-sm leading-6 text-slate-500">
-                                Access your meetings, team and workspace.
+                            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                Access your scheduled calls, team channels, and conference rooms.
                             </p>
                         </div>
 
-                        {/* Form */}
-                        <form className="mt-8 space-y-5">
+                        {/* Fast Demo Access Button */}
+                        <div className="mt-6 rounded-2xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs font-bold text-blue-700 dark:text-blue-300">Quick Test Drive</p>
+                                    <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80">Explore the complete dashboard directly</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleDemoLogin}
+                                    className="rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white transition shadow-sm"
+                                >
+                                    Demo Login →
+                                </button>
+                            </div>
+                        </div>
 
+                        <div className="relative my-6 flex items-center">
+                            <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                            <span className="shrink-0 px-3 text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider">or sign in with credentials</span>
+                            <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label
                                     htmlFor="email"
-                                    className="mb-2 block text-sm font-medium text-slate-700"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
                                 >
-                                    Work email
+                                    Work Email
                                 </label>
 
                                 <input
                                     id="email"
                                     name="email"
                                     type="email"
-                                    placeholder="you@vlsilabs.ai"
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="name@vlsilabs.ai"
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                             </div>
 
                             <div>
-                                <div className="mb-2 flex items-center justify-between">
+                                <div className="mb-1.5 flex items-center justify-between">
                                     <label
                                         htmlFor="password"
-                                        className="block text-sm font-medium text-slate-700"
+                                        className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
                                     >
                                         Password
                                     </label>
 
                                     <a
                                         href="#"
-                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
                                     >
-                                        Forgot password?
+                                        Forgot?
                                     </a>
                                 </div>
 
@@ -118,39 +197,42 @@ export default function LoginPage() {
                                     id="password"
                                     name="password"
                                     type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     placeholder="Enter your password"
-                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                             </div>
 
                             <button
                                 type="submit"
-                                className="w-full rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700"
+                                disabled={isLoading}
+                                className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition disabled:opacity-70"
                             >
-                                Sign in
+                                {isLoading ? "Authenticating..." : "Sign in to Dashboard →"}
                             </button>
                         </form>
 
-                        {/* Register */}
-                        <p className="mt-8 text-center text-sm text-slate-500">
-                            Don&apos;t have an account?{" "}
-                            <a
-                                href="/register"
-                                className="font-semibold text-indigo-600 hover:text-indigo-700"
-                            >
-                                Create account
-                            </a>
-                        </p>
-
-                        <div className="mt-8 border-t border-slate-200 pt-6 text-center">
+                        {/* Register Link */}
+                        <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                            Don&apos;t have an account yet?{" "}
                             <Link
-                                href="/"
-                                className="text-sm font-medium text-slate-500 hover:text-slate-900"
+                                href="/register"
+                                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                             >
-                                ← Back to VLSI Labs Meetings
+                                Create workspace account
                             </Link>
-                        </div>
+                        </p>
+                    </div>
 
+                    <div className="pt-4 text-center">
+                        <Link
+                            href="/"
+                            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition"
+                        >
+                            ← Back to Home
+                        </Link>
                     </div>
                 </section>
             </div>

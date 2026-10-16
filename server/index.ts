@@ -141,6 +141,33 @@ io.on("connection", (socket) => {
         }
     );
 
+    socket.on(
+        "chat-message",
+        (data: {
+            meetingId: string;
+            senderName: string;
+            text: string;
+            time?: string;
+        }) => {
+            if (data?.meetingId && data?.text) {
+                socket.to(data.meetingId).emit("chat-message", {
+                    id: `${Date.now()}-${socket.id}`,
+                    senderName:
+                        data.senderName ||
+                        socket.data?.participantName ||
+                        "Participant",
+                    text: data.text,
+                    time:
+                        data.time ||
+                        new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        }),
+                });
+            }
+        }
+    );
+
     socket.on("disconnect", () => {
         console.log(
             "User disconnected:",
