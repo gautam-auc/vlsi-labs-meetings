@@ -1,0 +1,7 @@
+{
+  "name": "VLSI Labs Meetings",
+  "description": "High performance video conferencing, team collaboration and meeting workspace for VLSI Labs",
+  "version": "1.0.0",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
