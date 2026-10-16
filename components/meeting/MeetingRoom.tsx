@@ -23,11 +23,19 @@ type ExistingUser = {
     participantName: string;
 };
 
-type MediaStateMessage = {
-    type: "media-state";
-    cameraEnabled: boolean;
-    screenSharing: boolean;
-};
+type MediaStateMessage =
+    | {
+          type: "media-state";
+          cameraEnabled: boolean;
+          screenSharing: boolean;
+      }
+    | {
+          type: "chat-message";
+          id: string;
+          senderName: string;
+          text: string;
+          time: string;
+      };
 
 const SOCKET_URL =
     process.env.NEXT_PUBLIC_SOCKET_URL ||
@@ -118,7 +126,12 @@ export default function MeetingRoom({
         Record<string, RTCRtpSender>
     >({});
 
-    // Data channel used for camera/screen state.
+    // One stable audio sender per participant.
+    const audioSendersRef = useRef<
+        Record<string, RTCRtpSender>
+    >({});
+
+    // Data channel used for camera/screen state and peer-to-peer chat.
     const dataChannelsRef = useRef<
         Record<string, RTCDataChannel>
     >({});
@@ -247,6 +260,10 @@ export default function MeetingRoom({
             socketId
         ];
 
+        delete audioSendersRef.current[
+            socketId
+        ];
+
         delete dataChannelsRef.current[
             socketId
         ];
@@ -314,29 +331,31 @@ export default function MeetingRoom({
             const message =
                 JSON.parse(event.data) as MediaStateMessage;
 
-            if (
-                message.type !==
-                "media-state"
-            ) {
+            if (message.type === "chat-message") {
+                handleChatMessage({
+                    id: message.id,
+                    senderName: message.senderName,
+                    text: message.text,
+                    time: message.time,
+                });
                 return;
             }
 
-            setRemoteParticipants(
-                (current) =>
-                    current.map(
-                        (participant) =>
-                            participant.socketId ===
-                                socketId
-                                ? {
-                                    ...participant,
-                                    cameraEnabled:
-                                        message.cameraEnabled,
-                                    screenSharing:
-                                        message.screenSharing,
-                                }
-                                : participant
+            if (message.type === "media-state") {
+                setRemoteParticipants((current) =>
+                    current.map((participant) =>
+                        participant.socketId === socketId
+                            ? {
+                                  ...participant,
+                                  cameraEnabled: message.cameraEnabled,
+                                  screenSharing: message.screenSharing,
+                                  // Refresh stream reference so React re-evaluates video/screen track
+                                  stream: new MediaStream(participant.stream.getTracks()),
+                              }
+                            : participant
                     )
-            );
+                );
+            }
         } catch (error) {
             console.error(
                 "Invalid data channel message:",
@@ -355,21 +374,27 @@ export default function MeetingRoom({
         text: string;
         time?: string;
     }) => {
-        setChatMessages((prev) => [
-            ...prev,
-            {
-                id: data.id || `${Date.now()}-${Math.random()}`,
-                senderName: data.senderName,
-                text: data.text,
-                time:
-                    data.time ||
-                    new Date().toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                    }),
-                isSelf: false,
-            },
-        ]);
+        const msgId = data.id || `${data.senderName}-${data.text}-${data.time || Date.now()}`;
+        setChatMessages((prev) => {
+            if (prev.some((m) => m.id === msgId)) {
+                return prev;
+            }
+            return [
+                ...prev,
+                {
+                    id: msgId,
+                    senderName: data.senderName,
+                    text: data.text,
+                    time:
+                        data.time ||
+                        new Date().toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                        }),
+                    isSelf: false,
+                },
+            ];
+        });
         if (sidePanelRef.current !== "chat") {
             setUnreadChatCount((count) => count + 1);
         }
@@ -385,17 +410,39 @@ export default function MeetingRoom({
             minute: "2-digit",
         });
 
-        const msg = {
-            id: `${Date.now()}-self`,
+        const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const selfMsg = {
+            id: `${id}-self`,
             senderName: participantName || "You",
             text,
             time,
             isSelf: true,
         };
 
-        setChatMessages((prev) => [...prev, msg]);
+        setChatMessages((prev) => [...prev, selfMsg]);
         setChatInput("");
 
+        // 1. Direct WebRTC Peer-to-Peer DataChannel Broadcast (instant & zero server latency)
+        const peerPayload = JSON.stringify({
+            type: "chat-message",
+            id,
+            senderName: participantName || "Participant",
+            text,
+            time,
+        });
+
+        Object.values(dataChannelsRef.current).forEach((channel) => {
+            if (channel.readyState === "open") {
+                try {
+                    channel.send(peerPayload);
+                } catch (err) {
+                    console.error("Data channel chat send failed:", err);
+                }
+            }
+        });
+
+        // 2. Central Socket.IO Relay
         if (socketRef.current) {
             socketRef.current.emit("chat-message", {
                 meetingId,
@@ -546,7 +593,22 @@ export default function MeetingRoom({
         ] = videoTransceiver.sender;
 
         /*
-         * Add microphone.
+         * Create permanent audio transceiver for symmetrical 2-way audio
+         */
+        const audioTransceiver =
+            peerConnection.addTransceiver(
+                "audio",
+                {
+                    direction: "sendrecv",
+                }
+            );
+
+        audioSendersRef.current[
+            remoteSocketId
+        ] = audioTransceiver.sender;
+
+        /*
+         * Attach local microphone and camera tracks
          */
         const localStream =
             localStreamRef.current;
@@ -561,10 +623,9 @@ export default function MeetingRoom({
                     );
 
             if (audioTrack) {
-                peerConnection.addTrack(
-                    audioTrack,
-                    localStream
-                );
+                audioTransceiver.sender.replaceTrack(
+                    audioTrack
+                ).catch(() => {});
             }
 
             /*
@@ -585,7 +646,7 @@ export default function MeetingRoom({
             ) {
                 videoTransceiver.sender.replaceTrack(
                     cameraTrack
-                );
+                ).catch(() => {});
             }
         }
 
@@ -644,31 +705,36 @@ export default function MeetingRoom({
             event
         ) => {
             let remoteStream =
-                event.streams[0];
+                remoteStreamsRef.current[
+                remoteSocketId
+                ];
 
             if (!remoteStream) {
                 remoteStream =
-                    remoteStreamsRef.current[
-                    remoteSocketId
-                    ] || new MediaStream();
-
-                if (
-                    !remoteStream
-                        .getTracks()
-                        .some(
-                            (track) =>
-                                track.id === event.track.id
-                        )
-                ) {
-                    remoteStream.addTrack(
-                        event.track
-                    );
-                }
+                    event.streams[0] || new MediaStream();
             }
+
+            if (
+                !remoteStream
+                    .getTracks()
+                    .some(
+                        (track) =>
+                            track.id === event.track.id
+                    )
+            ) {
+                remoteStream.addTrack(
+                    event.track
+                );
+            }
+
+            // Always create a fresh MediaStream clone so React components immediately re-run hooks and play audio/video
+            const updatedStream = new MediaStream(
+                remoteStream.getTracks()
+            );
 
             remoteStreamsRef.current[
                 remoteSocketId
-            ] = remoteStream;
+            ] = updatedStream;
 
             const remoteName =
                 remoteNamesRef.current[
@@ -678,7 +744,7 @@ export default function MeetingRoom({
             addRemoteParticipant(
                 remoteSocketId,
                 remoteName,
-                remoteStream
+                updatedStream
             );
         };
 
@@ -1187,30 +1253,40 @@ export default function MeetingRoom({
        MICROPHONE
     ========================================================= */
 
-    const toggleMic = () => {
-        const stream =
-            localStreamRef.current;
+    const toggleMic = async () => {
+        let stream = localStreamRef.current;
 
-        if (!stream) {
-            return;
+        if (!stream || stream.getAudioTracks().length === 0) {
+            try {
+                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const newAudioTrack = micStream.getAudioTracks()[0];
+                if (newAudioTrack) {
+                    if (!stream) {
+                        stream = new MediaStream();
+                        localStreamRef.current = stream;
+                    }
+                    stream.addTrack(newAudioTrack);
+                    Object.values(audioSendersRef.current).forEach((sender) => {
+                        sender.replaceTrack(newAudioTrack).catch(() => {});
+                    });
+                    setMicEnabled(true);
+                    return;
+                }
+            } catch (err) {
+                console.error("Could not dynamically acquire microphone:", err);
+                return;
+            }
         }
 
-        const audioTracks =
-            stream.getAudioTracks();
+        if (!stream) return;
+        const audioTracks = stream.getAudioTracks();
+        const nextState = !micEnabled;
 
-        const nextState =
-            !micEnabled;
+        audioTracks.forEach((track) => {
+            track.enabled = nextState;
+        });
 
-        audioTracks.forEach(
-            (track) => {
-                track.enabled =
-                    nextState;
-            }
-        );
-
-        setMicEnabled(
-            nextState
-        );
+        setMicEnabled(nextState);
     };
 
     /* =========================================================
@@ -1879,16 +1955,14 @@ export default function MeetingRoom({
                                     className="relative min-h-0 min-w-0 overflow-hidden"
                                 >
                                     <VideoTile
-                                        stream={
-                                            participant.cameraEnabled || participant.screenSharing
-                                                ? participant.stream
-                                                : null
-                                        }
+                                        stream={participant.stream}
                                         name={
                                             participant.screenSharing
                                                 ? `${participant.name} · Screen`
                                                 : participant.name
                                         }
+                                        isScreen={participant.screenSharing}
+                                        micEnabled={participant.cameraEnabled !== false}
                                     />
                                 </div>
                             ))}
