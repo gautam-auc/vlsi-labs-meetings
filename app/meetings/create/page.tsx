@@ -354,7 +354,7 @@ export default function CreateMeetingPage() {
                                 type="text"
                                 value={participants}
                                 onChange={(e) => setParticipants(e.target.value)}
-                                placeholder="gautam@vlsilabs.ai, team@vlsilabs.ai"
+                                placeholder="agautamrpr@gmail.com, team@vlsilabs.ai"
                                 className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none focus:border-blue-500"
                             />
                         </div>

@@ -8,7 +8,7 @@ import { useTheme } from "../../../components/ThemeProvider";
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
     const [name, setName] = useState("A. Gautam");
-    const [email, setEmail] = useState("gautam@vlsilabs.ai");
+    const [email, setEmail] = useState("agautamrpr@gmail.com");
     const [savedNotice, setSavedNotice] = useState(false);
 
     const handleSave = (e: React.FormEvent) => {
