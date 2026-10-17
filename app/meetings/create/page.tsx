@@ -39,7 +39,7 @@ export default function CreateMeetingPage() {
         return `VLSI-${result}`;
     }
 
-    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (!title.trim()) return;
 
@@ -58,6 +58,36 @@ export default function CreateMeetingPage() {
             mode,
         };
 
+        try {
+            const hostName = localStorage.getItem("vlsilabs_user_name") || "A. Gautam";
+            const hostEmail = localStorage.getItem("vlsilabs_user_email") || "";
+
+            const res = await fetch("/api/meetings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title: meeting.title,
+                    description: meeting.description,
+                    date: meeting.date,
+                    time: meeting.time,
+                    duration: meeting.duration,
+                    mode: meeting.mode,
+                    participants: meeting.participants,
+                    hostName,
+                    hostEmail,
+                }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.meeting?.meetingId) {
+                    meeting.id = data.meeting.meetingId;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to post meeting to API, using local sync:", err);
+        }
+
         const existingMeetings = JSON.parse(
             localStorage.getItem("vlsilabs_meetings") || "[]"
         ) as Meeting[];
@@ -70,7 +100,7 @@ export default function CreateMeetingPage() {
         setIsCreating(false);
 
         if (mode === "instant") {
-            router.push(`/meet/${newId}`);
+            router.push(`/meet/${meeting.id}`);
         } else {
             setCreatedMeeting(meeting);
         }

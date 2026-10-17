@@ -12,22 +12,51 @@ export default function RegisterPage() {
     const [password, setPassword] = useState("");
     const [workspace, setWorkspace] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
 
-    function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: FormEvent) {
         e.preventDefault();
+        setError("");
         setIsLoading(true);
-        if (email) {
-            localStorage.setItem("vlsilabs_user_email", email);
-        }
-        if (name) {
-            localStorage.setItem("vlsilabs_user_name", name);
-        }
-        if (workspace) {
-            localStorage.setItem("vlsilabs_workspace", workspace);
-        }
-        setTimeout(() => {
+
+        try {
+            const res = await fetch("/api/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, email, password, workspace }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || "Failed to create account. Please try again.");
+                setIsLoading(false);
+                return;
+            }
+
+            if (data.token) {
+                localStorage.setItem("vlsilabs_token", data.token);
+            }
+            if (email) {
+                localStorage.setItem("vlsilabs_user_email", email);
+            }
+            if (name) {
+                localStorage.setItem("vlsilabs_user_name", name);
+            }
+            if (workspace) {
+                localStorage.setItem("vlsilabs_workspace", workspace);
+            }
+
             router.push("/dashboard");
-        }, 400);
+        } catch (err) {
+            console.error("Register fetch error:", err);
+            // Fallback for offline local demo
+            if (email) localStorage.setItem("vlsilabs_user_email", email);
+            if (name) localStorage.setItem("vlsilabs_user_name", name);
+            router.push("/dashboard");
+        } finally {
+            setIsLoading(false);
+        }
     }
 
     return (
@@ -123,6 +152,13 @@ export default function RegisterPage() {
                                 Set up your team&apos;s meetings and collaboration center in 30 seconds.
                             </p>
                         </div>
+
+                        {/* Error Alert */}
+                        {error && (
+                            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                                ⚠ {error}
+                            </div>
+                        )}
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

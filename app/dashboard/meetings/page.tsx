@@ -55,33 +55,80 @@ export default function MeetingsPage() {
     const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
-        try {
-            const saved = localStorage.getItem("vlsilabs_meetings");
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    const mapped: MeetingItem[] = parsed.map((m: any) => ({
-                        id: m.id || `VLSI-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-                        title: m.title || "Custom Meeting",
-                        date: m.date || "Scheduled",
-                        time: m.time || "TBD",
-                        participants: m.participants ? m.participants.split(",").map((p: string) => p.trim()) : ["AG"],
-                        status: "upcoming",
-                    }));
-                    setMeetings([...mapped, ...defaultMeetings]);
+        let isMounted = true;
+
+        async function loadMeetings() {
+            let apiMeetings: MeetingItem[] = [];
+            try {
+                const res = await fetch("/api/meetings");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.meetings)) {
+                        apiMeetings = data.meetings.map((m: any) => ({
+                            id: m.meetingId || m.id,
+                            title: m.title || "Meeting",
+                            date: m.date || "Scheduled",
+                            time: m.time || "TBD",
+                            participants: Array.isArray(m.participants) ? m.participants : ["Host"],
+                            status: m.status || "upcoming",
+                        }));
+                    }
                 }
+            } catch (err) {
+                console.error("Failed to fetch meetings from API, using local fallback:", err);
             }
-        } catch (_) {}
+
+            try {
+                const saved = localStorage.getItem("vlsilabs_meetings");
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const localMapped: MeetingItem[] = parsed.map((m: any) => ({
+                            id: m.id || m.meetingId,
+                            title: m.title || "Custom Meeting",
+                            date: m.date || "Scheduled",
+                            time: m.time || "TBD",
+                            participants: m.participants ? (typeof m.participants === "string" ? m.participants.split(",").map((p: string) => p.trim()) : m.participants) : ["AG"],
+                            status: "upcoming" as const,
+                        }));
+
+                        // Deduplicate by meeting ID
+                        const combined = [...localMapped, ...apiMeetings, ...defaultMeetings];
+                        const unique = combined.filter((m, idx, arr) => arr.findIndex((item) => item.id === m.id) === idx);
+                        if (isMounted) setMeetings(unique);
+                        return;
+                    }
+                }
+            } catch (_) {}
+
+            if (isMounted) {
+                const combined = [...apiMeetings, ...defaultMeetings];
+                const unique = combined.filter((m, idx, arr) => arr.findIndex((item) => item.id === m.id) === idx);
+                setMeetings(unique);
+            }
+        }
+
+        loadMeetings();
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         const updated = meetings.filter((m) => m.id !== id);
         setMeetings(updated);
+
+        try {
+            await fetch(`/api/meetings/${id}`, { method: "DELETE" });
+        } catch (err) {
+            console.error("API meeting delete error:", err);
+        }
+
         try {
             const saved = localStorage.getItem("vlsilabs_meetings");
             if (saved) {
                 const parsed = JSON.parse(saved);
-                const filteredSaved = parsed.filter((m: any) => m.id !== id);
+                const filteredSaved = parsed.filter((m: any) => (m.id || m.meetingId) !== id);
                 localStorage.setItem("vlsilabs_meetings", JSON.stringify(filteredSaved));
             }
         } catch (_) {}

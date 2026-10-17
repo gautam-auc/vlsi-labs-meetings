@@ -10,16 +10,47 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
 
-    function handleSubmit(e: FormEvent) {
+    async function handleSubmit(e: FormEvent) {
         e.preventDefault();
+        setError("");
         setIsLoading(true);
-        if (email) {
-            localStorage.setItem("vlsilabs_user_email", email);
-        }
-        setTimeout(() => {
+
+        try {
+            const res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || "Login failed. Please verify your credentials.");
+                setIsLoading(false);
+                return;
+            }
+
+            if (data.token) {
+                localStorage.setItem("vlsilabs_token", data.token);
+            }
+            if (data.user?.email) {
+                localStorage.setItem("vlsilabs_user_email", data.user.email);
+            }
+            if (data.user?.name) {
+                localStorage.setItem("vlsilabs_user_name", data.user.name);
+            }
+
             router.push("/dashboard");
-        }, 400);
+        } catch (err) {
+            console.error("Login fetch error:", err);
+            // Fallback for offline local demo
+            localStorage.setItem("vlsilabs_user_email", email);
+            router.push("/dashboard");
+        } finally {
+            setIsLoading(false);
+        }
     }
 
     function handleDemoLogin() {
@@ -153,6 +184,13 @@ export default function LoginPage() {
                             <span className="shrink-0 px-3 text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider">or sign in with credentials</span>
                             <div className="w-full border-t border-slate-200 dark:border-slate-800" />
                         </div>
+
+                        {/* Error Alert */}
+                        {error && (
+                            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                                ⚠ {error}
+                            </div>
+                        )}
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-4">
