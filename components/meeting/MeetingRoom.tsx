@@ -35,6 +35,10 @@ type MediaStateMessage =
           senderName: string;
           text: string;
           time: string;
+      }
+    | {
+          type: "reaction";
+          emoji: string;
       };
 
 const SOCKET_URL =
@@ -91,8 +95,31 @@ export default function MeetingRoom({
     const [chatInput, setChatInput] = useState("");
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [copiedUrl, setCopiedUrl] = useState(false);
+    const [pinnedSocketId, setPinnedSocketId] = useState<string | null>(null);
+    const [reactions, setReactions] = useState<Array<{ id: string; emoji: string }>>([]);
     const sidePanelRef = useRef<"none" | "participants" | "chat">("none");
     sidePanelRef.current = sidePanel;
+
+    const sendReaction = (emoji: string) => {
+        const id = `${Date.now()}-${Math.random()}`;
+        setReactions((prev) => [...prev, { id, emoji }]);
+        setTimeout(() => {
+            setReactions((prev) => prev.filter((r) => r.id !== id));
+        }, 3000);
+
+        const payload = JSON.stringify({
+            type: "reaction",
+            emoji,
+        });
+
+        Object.values(dataChannelsRef.current).forEach((channel) => {
+            if (channel.readyState === "open") {
+                try {
+                    channel.send(payload);
+                } catch {}
+            }
+        });
+    };
 
     /* =========================================================
        STREAM REFS
@@ -341,6 +368,15 @@ export default function MeetingRoom({
                 return;
             }
 
+            if (message.type === "reaction") {
+                const id = `${Date.now()}-${Math.random()}`;
+                setReactions((prev) => [...prev, { id, emoji: message.emoji }]);
+                setTimeout(() => {
+                    setReactions((prev) => prev.filter((r) => r.id !== id));
+                }, 3000);
+                return;
+            }
+
             if (message.type === "media-state") {
                 setRemoteParticipants((current) =>
                     current.map((participant) =>
@@ -555,10 +591,15 @@ export default function MeetingRoom({
         const peerConnection =
             new RTCPeerConnection({
                 iceServers: [
-                    {
-                        urls: "stun:stun.l.google.com:19302",
-                    },
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" },
+                    { urls: "stun:stun2.l.google.com:19302" },
+                    { urls: "stun:stun3.l.google.com:19302" },
+                    { urls: "stun:stun4.l.google.com:19302" },
+                    { urls: "stun:stun.cloudflare.com:3478" },
+                    { urls: "stun:global.stun.twilio.com:3478" },
                 ],
+                iceCandidatePoolSize: 10,
             });
 
         peerConnectionsRef.current[
@@ -1140,7 +1181,10 @@ export default function MeetingRoom({
             const socket = io(
                 SOCKET_URL,
                 {
-                    transports: ["websocket"],
+                    transports: ["polling", "websocket"],
+                    reconnection: true,
+                    reconnectionAttempts: 10,
+                    reconnectionDelay: 1000,
                 }
             );
 
@@ -1833,65 +1877,115 @@ export default function MeetingRoom({
     }
 
     /* =========================================================
-       MEETING ROOM
+       ACTIVE / PINNED PARTICIPANT CALCULATION (Image 2 Stage)
     ========================================================= */
 
+    // Determine who is shown on the large main stage
+    const activeRemote = remoteParticipants.find(
+        (p) => p.socketId === pinnedSocketId
+    ) || remoteParticipants[0];
+
+    const isLocalPinned = pinnedSocketId === "local" || (!activeRemote && remoteParticipants.length === 0);
+
     return (
-        <main className="relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-950 text-white">
-            {/* HEADER */}
-            <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950/90 px-4 sm:px-6 backdrop-blur z-20">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs shadow-md">
-                        VL
+        <main className="relative flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#0a0d14] text-white">
+            {/* TOP HEADER (Exact Image 2 Style) */}
+            <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800/80 bg-[#0d111a] px-3 sm:px-6 z-20">
+                {/* Brand / Meeting Title */}
+                <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
                     </div>
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h1 className="truncate text-sm font-bold text-white sm:text-base">
+                    <div>
+                        <h1 className="text-sm sm:text-base font-bold text-white tracking-wide flex items-center gap-2">
+                            Meeting
+                            <span className="hidden sm:inline-block text-xs font-semibold text-slate-400 bg-slate-800/70 px-2 py-0.5 rounded-md border border-slate-700/60">
                                 {meetingId}
-                            </h1>
-                            <button
-                                type="button"
-                                onClick={copyMeetingUrl}
-                                className="relative flex items-center gap-1 rounded-md border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
-                                title="Copy meeting link"
-                            >
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                                <span>{copiedUrl ? "Copied!" : "Copy Link"}</span>
-                            </button>
-                        </div>
-                        <p className="hidden sm:block text-[10px] text-slate-500 font-medium">
-                            VLSI Labs Secure Workspace
-                        </p>
+                            </span>
+                        </h1>
                     </div>
                 </div>
 
+                {/* Right Actions: Participant Pill + Share Link + Dashboard + Log Out + Avatar */}
                 <div className="flex items-center gap-2 sm:gap-3">
-                    {/* Status badge: honest indicator per PDF rules */}
-                    <div className="hidden md:flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/80 px-3 py-1 text-[11px] font-medium text-slate-400">
-                        <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-                        <span>Cloud Recording: Coming in Phase 5</span>
-                    </div>
+                    {/* Participant Avatar Stack Button (Image 2) */}
+                    <button
+                        type="button"
+                        onClick={toggleParticipants}
+                        className="flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-200 hover:border-slate-700 hover:bg-slate-850 transition"
+                    >
+                        <div className="flex -space-x-2 overflow-hidden">
+                            <span className="inline-block h-6 w-6 rounded-full ring-2 ring-slate-900 bg-blue-600 text-white text-[10px] font-bold text-center leading-6">
+                                {(participantName || "Y").charAt(0).toUpperCase()}
+                            </span>
+                            {remoteParticipants.slice(0, 3).map((p, i) => (
+                                <span
+                                    key={p.socketId}
+                                    className={`inline-block h-6 w-6 rounded-full ring-2 ring-slate-900 text-white text-[10px] font-bold text-center leading-6 ${
+                                        i % 2 === 0 ? "bg-emerald-600" : "bg-purple-600"
+                                    }`}
+                                >
+                                    {p.name.charAt(0).toUpperCase()}
+                                </span>
+                            ))}
+                        </div>
+                        <span className="hidden sm:inline text-xs font-semibold">
+                            {1 + remoteParticipants.length} participants
+                        </span>
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
 
-                    <div className="flex items-center gap-1.5 rounded-full border border-emerald-900/60 bg-emerald-950/50 px-3 py-1 text-[11px] font-semibold text-emerald-400">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>Live</span>
-                    </div>
+                    {/* Share Link Pill (Image 2) */}
+                    <button
+                        type="button"
+                        onClick={copyMeetingUrl}
+                        className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-700 hover:text-white"
+                        title="Copy meeting link"
+                    >
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <span className="hidden md:inline">{copiedUrl ? "Copied!" : "Share Link"}</span>
+                    </button>
 
+                    {/* Dashboard Pill (Image 2) */}
                     <a
                         href="/dashboard"
-                        className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-700 hover:text-white"
+                        className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-700 hover:text-white"
                     >
-                        Dashboard
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                        <span>Dashboard</span>
                     </a>
+
+                    {/* Log Out Pill (Image 2) */}
+                    <button
+                        type="button"
+                        onClick={leaveMeeting}
+                        className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-700 hover:text-white"
+                    >
+                        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        <span className="hidden sm:inline">Log Out</span>
+                    </button>
+
+                    {/* User Profile Avatar */}
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xs text-white ring-2 ring-slate-800 shadow">
+                        {(participantName || "U").charAt(0).toUpperCase()}
+                    </div>
                 </div>
             </header>
 
-            {/* WORKSPACE BODY (VIDEO AREA + SLIDE PANEL) */}
+            {/* WORKSPACE BODY (STAGE & THUMBNAILS + SIDE PANEL) */}
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                {/* VIDEO GALLERY */}
-                <section className="relative min-h-0 flex-1 overflow-hidden p-2 sm:p-4 pb-24 sm:pb-24">
+                {/* VIDEO GALLERY (Matching Image 2: Large Stage on Top + Horizontal Row on Bottom) */}
+                <section className="relative min-h-0 flex-1 overflow-hidden p-2 sm:p-4 pb-28 sm:pb-28 flex flex-col gap-3">
                     {error && (
                         <div className="absolute left-3 right-3 top-3 z-50 rounded-xl border border-red-900/60 bg-red-950/95 px-4 py-3 text-sm text-red-300 shadow-xl backdrop-blur md:left-4 md:right-4">
                             {error}
@@ -1902,7 +1996,7 @@ export default function MeetingRoom({
                         /* ONE USER WAITING STATE */
                         <div className="flex h-full min-h-0 w-full items-center justify-center">
                             <div className="flex h-full min-h-0 w-full max-w-4xl flex-col justify-center gap-3">
-                                <div className="relative min-h-0 flex-1">
+                                <div className="relative min-h-0 flex-1 rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl">
                                     <VideoTile
                                         stream={localPreviewStream}
                                         name={`${participantName} (You)`}
@@ -1915,7 +2009,7 @@ export default function MeetingRoom({
                                         Waiting for participants to join
                                     </p>
                                     <p className="mt-1 text-xs text-slate-400">
-                                        Share the meeting code or link with your team to begin the session.
+                                        Share meeting code <span className="font-mono text-blue-400 font-bold">{meetingId}</span> or link with your team.
                                     </p>
                                     <button
                                         type="button"
@@ -1931,83 +2025,95 @@ export default function MeetingRoom({
                             </div>
                         </div>
                     ) : (
-                        /* MULTI USER GALLERY */
-                        <div
-                            className={`grid h-full min-h-0 w-full gap-2 sm:gap-3 ${
-                                remoteParticipants.length === 1
-                                    ? "grid-cols-1 lg:grid-cols-2"
-                                    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                            }`}
-                        >
-                            {/* LOCAL USER */}
-                            <div className="relative min-h-0 min-w-0 overflow-hidden">
-                                <VideoTile
-                                    stream={localPreviewStream}
-                                    name={`${participantName} (You)`}
-                                    muted
-                                />
+                        /* MULTI-USER STAGE + THUMBNAILS (Image 2) */
+                        <div className="flex h-full min-h-0 w-full flex-col gap-3">
+                            {/* LARGE STAGE VIDEO (Image 2 Top Stage) */}
+                            <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950 shadow-2xl">
+                                {/* Pinned Badge */}
+                                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-xl border border-slate-700/60 bg-slate-950/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+                                    <span>📌</span>
+                                    <span>Pinned</span>
+                                </div>
+
+                                {isLocalPinned ? (
+                                    <VideoTile
+                                        stream={localPreviewStream}
+                                        name={`${participantName} (You)`}
+                                        muted
+                                        isScreen={isScreenSharing}
+                                    />
+                                ) : (
+                                    activeRemote && (
+                                        <VideoTile
+                                            stream={activeRemote.stream}
+                                            name={
+                                                activeRemote.screenSharing
+                                                    ? `${activeRemote.name} · Screen`
+                                                    : activeRemote.name
+                                            }
+                                            isScreen={activeRemote.screenSharing}
+                                            micEnabled={activeRemote.cameraEnabled !== false}
+                                        />
+                                    )
+                                )}
                             </div>
 
-                            {/* REMOTE USERS */}
-                            {remoteParticipants.map((participant) => (
+                            {/* BOTTOM HORIZONTAL THUMBNAIL ROW (Image 2 Bottom Row) */}
+                            <div className="flex h-32 sm:h-40 shrink-0 gap-3 overflow-x-auto pb-1 scrollbar-thin">
+                                {/* You / Host Thumbnail */}
                                 <div
-                                    key={participant.socketId}
-                                    className="relative min-h-0 min-w-0 overflow-hidden"
+                                    onClick={() => setPinnedSocketId("local")}
+                                    className={`relative h-full w-48 sm:w-60 shrink-0 cursor-pointer overflow-hidden rounded-2xl border transition-all hover:border-blue-500/80 ${
+                                        isLocalPinned
+                                            ? "border-blue-500 ring-2 ring-blue-500/30"
+                                            : "border-slate-800/80 bg-slate-900/60"
+                                    }`}
                                 >
+                                    <div className="absolute top-2 left-2 z-10 rounded-md bg-blue-600/90 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
+                                        Host
+                                    </div>
                                     <VideoTile
-                                        stream={participant.stream}
-                                        name={
-                                            participant.screenSharing
-                                                ? `${participant.name} · Screen`
-                                                : participant.name
-                                        }
-                                        isScreen={participant.screenSharing}
-                                        micEnabled={participant.cameraEnabled !== false}
+                                        stream={localPreviewStream}
+                                        name="You"
+                                        muted
                                     />
                                 </div>
-                            ))}
+
+                                {/* Remote Participant Thumbnails */}
+                                {remoteParticipants.map((p) => {
+                                    const isCurrentPinned = !isLocalPinned && activeRemote?.socketId === p.socketId;
+                                    return (
+                                        <div
+                                            key={p.socketId}
+                                            onClick={() => setPinnedSocketId(p.socketId)}
+                                            className={`relative h-full w-48 sm:w-60 shrink-0 cursor-pointer overflow-hidden rounded-2xl border transition-all hover:border-blue-500/80 ${
+                                                isCurrentPinned
+                                                    ? "border-blue-500 ring-2 ring-blue-500/30"
+                                                    : "border-slate-800/80 bg-slate-900/60"
+                                            }`}
+                                        >
+                                            <VideoTile
+                                                stream={p.stream}
+                                                name={p.screenSharing ? `${p.name} · Screen` : p.name}
+                                                isScreen={p.screenSharing}
+                                                micEnabled={p.cameraEnabled !== false}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </section>
 
-                {/* RIGHT SIDE PANEL (Reference A: Participant List & Chat) */}
+                {/* RIGHT PANEL (Chat & People - Exact Image 2 Style) */}
                 {sidePanel !== "none" && (
-                    <aside className="absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-slate-800 bg-slate-900/98 shadow-2xl backdrop-blur-xl sm:static sm:w-80 md:w-96 pb-[76px]">
-                        {/* Panel Tabs */}
-                        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-                            <div className="flex gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setSidePanel("participants")}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                                        sidePanel === "participants"
-                                            ? "bg-blue-600 text-white"
-                                            : "text-slate-400 hover:text-white"
-                                    }`}
-                                >
-                                    People ({1 + remoteParticipants.length})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSidePanel("chat");
-                                        setUnreadChatCount(0);
-                                    }}
-                                    className={`relative rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                                        sidePanel === "chat"
-                                            ? "bg-blue-600 text-white"
-                                            : "text-slate-400 hover:text-white"
-                                    }`}
-                                >
-                                    Chat
-                                    {unreadChatCount > 0 && sidePanel !== "chat" && (
-                                        <span className="ml-1.5 rounded-full bg-blue-500 px-1.5 py-0.2 text-[10px] text-white">
-                                            {unreadChatCount}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
-
+                    <aside className="absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-slate-800 bg-[#0d111a]/98 shadow-2xl backdrop-blur-xl sm:static sm:w-80 md:w-96 pb-[84px]">
+                        {/* Header: Chat / People title + ✕ button */}
+                        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 px-4">
+                            <h2 className="text-sm font-bold text-white">
+                                {sidePanel === "chat" ? "Chat" : `Participants (${1 + remoteParticipants.length})`}
+                            </h2>
                             <button
                                 type="button"
                                 onClick={() => setSidePanel("none")}
@@ -2096,12 +2202,8 @@ export default function MeetingRoom({
 
                             {sidePanel === "chat" && (
                                 <div className="flex h-full flex-col">
-                                    {/* Messages list */}
-                                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                        <div className="rounded-lg bg-slate-800/50 p-2.5 text-center text-[11px] text-slate-400">
-                                            🔒 Live session chat. Messages are shared with everyone in the room.
-                                        </div>
-
+                                    {/* Messages list (Matching Image 2 Chat Layout) */}
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
                                         {chatMessages.length === 0 ? (
                                             <div className="flex h-48 flex-col items-center justify-center text-center text-slate-500">
                                                 <svg className="h-8 w-8 text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2112,53 +2214,99 @@ export default function MeetingRoom({
                                             </div>
                                         ) : (
                                             chatMessages.map((msg) => (
-                                                <div
-                                                    key={msg.id}
-                                                    className={`flex flex-col ${
-                                                        msg.isSelf ? "items-end" : "items-start"
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1">
-                                                        <span className="font-semibold text-slate-300">{msg.senderName}</span>
-                                                        <span>{msg.time}</span>
+                                                <div key={msg.id} className="flex gap-2.5 items-start">
+                                                    {/* Avatar circle */}
+                                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 text-[10px] font-bold text-white shadow">
+                                                        {msg.senderName.charAt(0).toUpperCase()}
                                                     </div>
-                                                    <div
-                                                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
-                                                            msg.isSelf
-                                                                ? "bg-blue-600 text-white rounded-br-xs"
-                                                                : "bg-slate-800 text-slate-100 rounded-bl-xs border border-slate-700/60"
-                                                        }`}
-                                                    >
-                                                        {msg.text}
+
+                                                    <div className="flex-1 min-w-0">
+                                                        {/* Header: Name in cyan/blue + to Everyone + time */}
+                                                        <div className="flex items-center justify-between gap-1 text-[11px] mb-1">
+                                                            <div className="flex items-center gap-1 truncate">
+                                                                <span className="font-semibold text-blue-400 truncate">
+                                                                    {msg.senderName}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400">
+                                                                    to Everyone
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500 shrink-0">
+                                                                {msg.time}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Message Bubble Card */}
+                                                        <div
+                                                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                                                                msg.isSelf
+                                                                    ? "bg-slate-800 text-slate-100 border border-slate-700/80"
+                                                                    : "bg-slate-850/90 text-slate-200 border border-slate-700/60"
+                                                            }`}
+                                                        >
+                                                            {msg.text}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))
                                         )}
                                     </div>
 
-                                    {/* Chat input */}
+                                    {/* Chat Input Bar (Matching Image 2 Bottom) */}
                                     <form
                                         onSubmit={sendChatMessage}
-                                        className="shrink-0 border-t border-slate-800 p-3 bg-slate-950/80"
+                                        className="shrink-0 border-t border-slate-800/80 p-3 bg-slate-950/90 space-y-2"
                                     >
-                                        <div className="flex items-center gap-2">
+                                        {/* To: Everyone pill selector */}
+                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                            <span>To:</span>
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-blue-600/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 font-medium">
+                                                Everyone
+                                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </span>
+                                        </div>
+
+                                        {/* Input Box with Action Buttons */}
+                                        <div className="relative flex items-center">
                                             <input
                                                 type="text"
                                                 value={chatInput}
                                                 onChange={(e) => setChatInput(e.target.value)}
-                                                placeholder="Send a message..."
-                                                className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500"
+                                                placeholder="Type your message..."
+                                                className="w-full rounded-xl border border-slate-700/80 bg-slate-900 pl-3 pr-20 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-blue-500"
                                             />
-                                            <button
-                                                type="submit"
-                                                disabled={!chatInput.trim()}
-                                                aria-label="Send message"
-                                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-40"
-                                            >
-                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                                </svg>
-                                            </button>
+                                            <div className="absolute right-2 flex items-center gap-1 text-slate-400">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setChatInput((prev) => prev + "📎 ")}
+                                                    className="p-1 hover:text-white transition"
+                                                    title="Attach file"
+                                                >
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setChatInput((prev) => prev + "😊")}
+                                                    className="p-1 hover:text-white transition"
+                                                    title="Emoji"
+                                                >
+                                                    <span className="text-xs">😊</span>
+                                                </button>
+                                                <button
+                                                    type="submit"
+                                                    disabled={!chatInput.trim()}
+                                                    aria-label="Send message"
+                                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-30"
+                                                >
+                                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
                                     </form>
                                 </div>
@@ -2168,8 +2316,20 @@ export default function MeetingRoom({
                 )}
             </div>
 
-            {/* FLOATING BOTTOM CONTROLS (Reference C) */}
-            <div className="absolute bottom-0 left-0 right-0 z-40 flex min-h-[72px] items-center justify-center border-t border-slate-800 bg-slate-950/95 px-2 py-3 backdrop-blur-xl sm:min-h-[78px] sm:px-4">
+            {/* FLOATING EMOJI REACTIONS (From Reaction bar) */}
+            <div className="pointer-events-none absolute bottom-24 right-8 z-50 flex flex-col gap-2">
+                {reactions.map((r) => (
+                    <div
+                        key={r.id}
+                        className="animate-bounce text-4xl shadow-xl transition-all duration-700"
+                    >
+                        {r.emoji}
+                    </div>
+                ))}
+            </div>
+
+            {/* FLOATING BOTTOM CONTROLS (Exact Image 2 Style) */}
+            <div className="absolute bottom-0 left-0 right-0 z-40 flex min-h-[72px] items-center justify-center border-t border-slate-800/80 bg-[#0d111a]/95 px-2 py-2.5 backdrop-blur-xl sm:min-h-[78px] sm:px-4">
                 <MeetingControls
                     micEnabled={micEnabled}
                     cameraEnabled={cameraEnabled}
@@ -2184,6 +2344,7 @@ export default function MeetingRoom({
                     onToggleParticipants={toggleParticipants}
                     isParticipantsOpen={sidePanel === "participants"}
                     participantCount={1 + remoteParticipants.length}
+                    onSendReaction={sendReaction}
                 />
             </div>
         </main>

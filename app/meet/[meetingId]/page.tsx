@@ -6,7 +6,11 @@ import MeetingRoom from "../../../components/meeting/MeetingRoom";
 export default function MeetingPage() {
     const params = useParams();
 
-    const meetingId = params.meetingId as string;
+    const rawId = Array.isArray(params.meetingId)
+        ? params.meetingId[0]
+        : (params.meetingId as string);
+
+    const meetingId = (rawId || "").trim().toUpperCase();
 
     if (!meetingId) {
         return (
