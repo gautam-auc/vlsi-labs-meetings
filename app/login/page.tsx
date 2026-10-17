@@ -54,10 +54,10 @@ export default function LoginPage() {
     }
 
     function handleDemoLogin() {
-        setEmail("agautamrpr@gmail.com");
+        setEmail("agautamauc@gmail.com");
         setPassword("••••••••••••");
         setIsLoading(true);
-        localStorage.setItem("vlsilabs_user_email", "agautamrpr@gmail.com");
+        localStorage.setItem("vlsilabs_user_email", "agautamauc@gmail.com");
         localStorage.setItem("vlsilabs_user_name", "A. Gautam");
         setTimeout(() => {
             router.push("/dashboard");
