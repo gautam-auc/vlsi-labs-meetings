@@ -547,6 +547,17 @@ export default function MeetingRoom({
                 time,
             });
         }
+
+        // 3. Persistent MongoDB storage (allows late joiners & room refreshes to see chat history)
+        fetch(`/api/meetings/${meetingId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                senderName: participantName || "You",
+                text,
+                time,
+            }),
+        }).catch((err) => console.error("Could not persist chat message:", err));
     };
 
     const copyMeetingUrl = () => {
@@ -1372,6 +1383,31 @@ export default function MeetingRoom({
                     );
 
                     sendMediaState();
+
+                    // Record participant attendance in MongoDB
+                    fetch(`/api/meetings/${meetingId}/join`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ participantName: name }),
+                    }).catch((e) => console.error("Could not log attendance:", e));
+
+                    // Fetch persisted chat history from MongoDB
+                    fetch(`/api/meetings/${meetingId}/messages`)
+                        .then((res) => (res.ok ? res.json() : null))
+                        .then((data) => {
+                            if (data?.messages && Array.isArray(data.messages)) {
+                                setChatMessages(
+                                    data.messages.map((m: any) => ({
+                                        id: m.id,
+                                        senderName: m.senderName,
+                                        text: m.text,
+                                        time: m.time,
+                                        isSelf: m.senderName === name,
+                                    }))
+                                );
+                            }
+                        })
+                        .catch((e) => console.error("Could not fetch meeting chat history:", e));
 
                     setJoined(true);
                     setJoining(false);
