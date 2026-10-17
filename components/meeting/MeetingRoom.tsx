@@ -1145,30 +1145,47 @@ export default function MeetingRoom({
         setJoining(true);
         setError("");
 
-        let stream: MediaStream;
+        // Initialize empty media stream and independently acquire audio & video
+        const stream = new MediaStream();
+
+        // 1. Acquire microphone with echo cancellation and noise suppression
         try {
-            /*
-             * Get camera + microphone.
-             */
-            stream =
-                await navigator.mediaDevices.getUserMedia(
-                    {
-                        video: true,
-                        audio: true,
-                    }
-                );
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+            });
+            audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+            setMicEnabled(true);
         } catch (mediaError) {
             console.warn(
-                "Could not acquire camera/mic, joining in audio/video off mode:",
+                "Microphone could not be acquired or permission denied:",
                 mediaError
             );
-            stream = new MediaStream();
-            setCameraEnabled(false);
             setMicEnabled(false);
         }
 
-        localStreamRef.current =
-            stream;
+        // 2. Acquire camera independently so camera failure NEVER blocks microphone
+        try {
+            const videoStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+            });
+            videoStream.getVideoTracks().forEach((track) => stream.addTrack(track));
+            setCameraEnabled(true);
+        } catch (mediaError) {
+            console.warn(
+                "Camera could not be acquired (busy or permission denied):",
+                mediaError
+            );
+            setCameraEnabled(false);
+        }
+
+        localStreamRef.current = stream;
 
         setLocalPreviewStream(
             stream
@@ -1302,7 +1319,13 @@ export default function MeetingRoom({
 
         if (!stream || stream.getAudioTracks().length === 0) {
             try {
-                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                });
                 const newAudioTrack = micStream.getAudioTracks()[0];
                 if (newAudioTrack) {
                     if (!stream) {

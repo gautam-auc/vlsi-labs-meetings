@@ -67,19 +67,19 @@ export default function MeetingControls({
             </div>
 
             {/* CENTER: Main action buttons (Matching Image 2) */}
-            <div className="flex flex-1 items-center justify-center gap-1.5 sm:gap-4">
+            <div className="flex flex-1 items-center justify-center gap-2 sm:gap-4">
                 {/* Video Toggle */}
                 <button
                     type="button"
                     onClick={onToggleCamera}
-                    className="group flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                    className="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                     title={cameraEnabled ? "Stop Video" : "Start Video"}
                 >
                     <div
-                        className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl transition ${
+                        className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full transition shadow-sm ${
                             cameraEnabled
-                                ? "bg-slate-800/90 text-slate-200 group-hover:bg-slate-700"
-                                : "bg-red-600/90 text-white"
+                                ? "bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600"
+                                : "bg-red-600 text-white shadow-red-900/30"
                         }`}
                     >
                         {cameraEnabled ? (
@@ -92,7 +92,7 @@ export default function MeetingControls({
                             </svg>
                         )}
                     </div>
-                    <span className="text-[10px] font-medium hidden sm:block">
+                    <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">
                         {cameraEnabled ? "Stop Video" : "Start Video"}
                     </span>
                 </button>
@@ -101,14 +101,14 @@ export default function MeetingControls({
                 <button
                     type="button"
                     onClick={onToggleMic}
-                    className="group flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                    className="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                     title={micEnabled ? "Mute" : "Unmute"}
                 >
                     <div
-                        className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl transition ${
+                        className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full transition shadow-sm ${
                             micEnabled
-                                ? "bg-slate-800/90 text-slate-200 group-hover:bg-slate-700"
-                                : "bg-red-600/90 text-white"
+                                ? "bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600"
+                                : "bg-red-600 text-white shadow-red-900/30"
                         }`}
                     >
                         {micEnabled ? (
@@ -122,7 +122,7 @@ export default function MeetingControls({
                             </svg>
                         )}
                     </div>
-                    <span className="text-[10px] font-medium hidden sm:block">
+                    <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">
                         {micEnabled ? "Mute" : "Unmute"}
                     </span>
                 </button>
@@ -132,14 +132,14 @@ export default function MeetingControls({
                     <button
                         type="button"
                         onClick={onToggleChat}
-                        className="group relative flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                        className="group relative flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                         title="Chat"
                     >
                         <div
-                            className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl transition ${
+                            className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full transition shadow-sm ${
                                 isChatOpen
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-slate-800/90 text-slate-200 group-hover:bg-slate-700"
+                                    ? "bg-blue-600 text-white shadow-blue-900/30"
+                                    : "bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600"
                             }`}
                         >
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -151,7 +151,7 @@ export default function MeetingControls({
                                 </span>
                             )}
                         </div>
-                        <span className="text-[10px] font-medium hidden sm:block">Chat</span>
+                        <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">Chat</span>
                     </button>
                 )}
 
@@ -159,7 +159,7 @@ export default function MeetingControls({
                 <button
                     type="button"
                     onClick={onLeave}
-                    className="flex h-11 w-14 sm:h-12 sm:w-16 items-center justify-center rounded-2xl bg-red-600 text-white shadow-lg transition hover:bg-red-700 active:scale-95"
+                    className="flex h-11 w-14 sm:h-12 sm:w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-lg shadow-red-900/40 transition hover:bg-red-700 active:scale-95"
                     title="Leave meeting"
                 >
                     <svg className="h-6 w-6 transform rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24">
@@ -171,21 +171,21 @@ export default function MeetingControls({
                 <button
                     type="button"
                     onClick={onToggleScreen}
-                    className="group flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                    className="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                     title={isScreenSharing ? "Stop Sharing" : "Share Screen"}
                 >
                     <div
-                        className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl transition ${
+                        className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full transition shadow-sm ${
                             isScreenSharing
-                                ? "bg-blue-600 text-white"
-                                : "bg-slate-800/90 text-slate-200 group-hover:bg-slate-700"
+                                ? "bg-blue-600 text-white shadow-blue-900/30"
+                                : "bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600"
                         }`}
                     >
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                     </div>
-                    <span className="text-[10px] font-medium hidden sm:block">Share Screen</span>
+                    <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">Share Screen</span>
                 </button>
 
                 {/* Reaction Popup */}
@@ -193,17 +193,17 @@ export default function MeetingControls({
                     <button
                         type="button"
                         onClick={() => setShowReactions(!showReactions)}
-                        className="group flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                        className="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                         title="Reactions"
                     >
-                        <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-slate-800/90 text-slate-200 group-hover:bg-slate-700 transition">
+                        <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600 transition shadow-sm">
                             <span className="text-lg">😊</span>
                         </div>
-                        <span className="text-[10px] font-medium hidden sm:block">Reaction</span>
+                        <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">Reaction</span>
                     </button>
 
                     {showReactions && (
-                        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl z-50">
+                        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-2xl border border-slate-700 bg-[#1a1c23]/95 p-2 shadow-2xl backdrop-blur-xl z-50">
                             {emojis.map((emoji) => (
                                 <button
                                     key={emoji}
@@ -223,15 +223,15 @@ export default function MeetingControls({
                     <button
                         type="button"
                         onClick={() => setShowMore(!showMore)}
-                        className="group flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                        className="group flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                         title="More options"
                     >
-                        <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-slate-800/90 text-slate-200 group-hover:bg-slate-700 transition">
+                        <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-[#20222a] text-slate-200 border border-slate-700/60 group-hover:bg-[#282b36] group-hover:border-slate-600 transition shadow-sm">
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
                             </svg>
                         </div>
-                        <span className="text-[10px] font-medium hidden sm:block">More</span>
+                        <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-300 hidden sm:block">More</span>
                     </button>
 
                     {showMore && (
@@ -282,34 +282,34 @@ export default function MeetingControls({
                 <button
                     type="button"
                     onClick={() => setIsHandRaised(!isHandRaised)}
-                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                    className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                     title={isHandRaised ? "Lower Hand" : "Raise Hand"}
                 >
                     <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                            isHandRaised ? "bg-amber-500/30 text-amber-400 border border-amber-500/50" : "bg-slate-800/90 text-slate-200 hover:bg-slate-700"
+                        className={`flex h-11 w-11 items-center justify-center rounded-full transition shadow-sm ${
+                            isHandRaised ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-[#20222a] text-slate-200 border border-slate-700/60 hover:bg-[#282b36]"
                         }`}
                     >
-                        <span className="text-lg">✋</span>
+                        <span className="text-base">✋</span>
                     </div>
-                    <span className="text-[10px] font-medium">Raise Hand</span>
+                    <span className="text-[10px] font-medium text-slate-400">Raise Hand</span>
                 </button>
 
                 {/* Caption */}
                 <button
                     type="button"
                     onClick={() => setIsCaptionOn(!isCaptionOn)}
-                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                    className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                     title="Live Captions"
                 >
                     <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                            isCaptionOn ? "bg-blue-600 text-white" : "bg-slate-800/90 text-slate-200 hover:bg-slate-700"
+                        className={`flex h-11 w-11 items-center justify-center rounded-full transition shadow-sm ${
+                            isCaptionOn ? "bg-blue-600 text-white shadow-blue-900/30" : "bg-[#20222a] text-slate-200 border border-slate-700/60 hover:bg-[#282b36]"
                         }`}
                     >
-                        <span className="text-xs font-bold border border-current px-1 py-0.5 rounded">CC</span>
+                        <span className="text-[11px] font-bold border border-current px-1 py-0.2 rounded">CC</span>
                     </div>
-                    <span className="text-[10px] font-medium">Caption</span>
+                    <span className="text-[10px] font-medium text-slate-400">Caption</span>
                 </button>
 
                 {/* Detail */}
@@ -317,19 +317,19 @@ export default function MeetingControls({
                     <button
                         type="button"
                         onClick={onToggleParticipants}
-                        className="flex flex-col items-center gap-1 text-slate-400 hover:text-white transition"
+                        className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
                         title="Meeting Details"
                     >
                         <div
-                            className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                                isParticipantsOpen ? "bg-blue-600 text-white" : "bg-slate-800/90 text-slate-200 hover:bg-slate-700"
+                            className={`flex h-11 w-11 items-center justify-center rounded-full transition shadow-sm ${
+                                isParticipantsOpen ? "bg-blue-600 text-white shadow-blue-900/30" : "bg-[#20222a] text-slate-200 border border-slate-700/60 hover:bg-[#282b36]"
                             }`}
                         >
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <span className="text-[10px] font-medium">Detail</span>
+                        <span className="text-[10px] font-medium text-slate-400">Detail</span>
                     </button>
                 )}
             </div>
