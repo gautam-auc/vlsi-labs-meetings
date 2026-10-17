@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const menuItems = [
+interface MenuItem {
+    label: string;
+    icon: React.ReactNode;
+    href: string;
+    badge?: string;
+}
+
+const baseMenuItems: MenuItem[] = [
     {
         label: "Dashboard",
         icon: (
@@ -33,21 +40,39 @@ const menuItems = [
         ),
         href: "/dashboard/recordings",
     },
-    {
-        label: "Admin & DaaS",
-        icon: (
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-        ),
-        href: "/dashboard/admin",
-        badge: "Admin",
-    },
 ];
+
+const adminMenuItem: MenuItem = {
+    label: "Admin & DaaS",
+    icon: (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+    ),
+    href: "/dashboard/admin",
+    badge: "Admin",
+};
 
 export default function Sidebar() {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [userName, setUserName] = useState("A. Gautam");
+    const [userRole, setUserRole] = useState("User");
     const pathname = usePathname();
+
+    useEffect(() => {
+        const email = (localStorage.getItem("vlsilabs_user_email") || "").toLowerCase().trim();
+        const role = localStorage.getItem("vlsilabs_user_role") || "";
+        const name = localStorage.getItem("vlsilabs_user_name") || "A. Gautam";
+        setUserName(name);
+
+        const adminEmails = ["agautamauc@gmail.com", "agautamrpr@gmail.com"];
+        const adminCheck = adminEmails.includes(email) || role === "admin";
+        setIsAdmin(adminCheck);
+        setUserRole(adminCheck ? "Administrator" : "Member");
+    }, []);
+
+    const menuItems = isAdmin ? [...baseMenuItems, adminMenuItem] : baseMenuItems;
 
     return (
         <>
@@ -80,21 +105,22 @@ export default function Sidebar() {
 
             {/* Sidebar */}
             <aside
-                className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "-translate-x-full"
-                    } lg:translate-x-0`}
+                className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-transform duration-300 ${
+                    mobileOpen ? "translate-x-0" : "-translate-x-full"
+                } lg:translate-x-0`}
             >
-                {/* Logo */}
+                {/* Logo Header with Official Company Logo */}
                 <div className="flex h-20 items-center border-b border-slate-100 dark:border-slate-800/80 px-6">
                     <Link href="/" className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white shadow-md shadow-blue-600/20">
-                            V
-                        </div>
-
+                        <img
+                            src="/logo.png"
+                            alt="VLSI Labs"
+                            className="h-10 w-auto object-contain"
+                        />
                         <div>
                             <p className="text-sm font-bold text-slate-900 dark:text-white">
                                 VLSI Labs
                             </p>
-
                             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                                 Meetings
                             </p>
@@ -116,15 +142,19 @@ export default function Sidebar() {
                                     key={item.label}
                                     href={item.href}
                                     onClick={() => setMobileOpen(false)}
-                                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${isActive
+                                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                                        isActive
                                             ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold"
                                             : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
-                                        }`}
+                                    }`}
                                 >
-                                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${isActive
-                                            ? "bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400"
-                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                                        }`}>
+                                    <span
+                                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${
+                                            isActive
+                                                ? "bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400"
+                                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                        }`}
+                                    >
                                         {item.icon}
                                     </span>
 
@@ -146,10 +176,11 @@ export default function Sidebar() {
                     <Link
                         href="/dashboard/settings"
                         onClick={() => setMobileOpen(false)}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${pathname === "/dashboard/settings"
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                            pathname === "/dashboard/settings"
                                 ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold"
                                 : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
-                            }`}
+                        }`}
                     >
                         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-xs">
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -157,23 +188,22 @@ export default function Sidebar() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                         </span>
-
                         Settings
                     </Link>
 
                     {/* User Profile Tile */}
                     <div className="mt-3 flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950 text-xs font-bold text-blue-700 dark:text-blue-300">
-                            AG
+                            {userName ? userName.charAt(0).toUpperCase() : "U"}
                         </div>
 
                         <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-                                A. Gautam
+                                {userName}
                             </p>
 
                             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                                Administrator
+                                {userRole}
                             </p>
                         </div>
                     </div>

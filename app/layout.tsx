@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "VLSI Labs Meetings",
   description:
     "Connect with your team, share ideas, and get work done—all in one place-VLSI Labs Meetings",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

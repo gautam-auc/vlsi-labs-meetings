@@ -14,6 +14,18 @@ export default function DashboardPage() {
     const [meetings, setMeetings] = useState(initialMeetings);
     const [joinCode, setJoinCode] = useState("");
     const [joinError, setJoinError] = useState("");
+    const [greeting, setGreeting] = useState("Good morning");
+    const [userName, setUserName] = useState("A. Gautam");
+
+    useEffect(() => {
+        const hour = new Date().getHours();
+        if (hour < 12) setGreeting("Good morning");
+        else if (hour < 17) setGreeting("Good afternoon");
+        else setGreeting("Good evening");
+
+        const storedName = localStorage.getItem("vlsilabs_user_name");
+        if (storedName) setUserName(storedName);
+    }, []);
 
     useEffect(() => {
         async function load() {
@@ -90,7 +102,7 @@ export default function DashboardPage() {
                             </p>
 
                             <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                Good morning, A. Gautam
+                                {greeting}, {userName}
                             </h2>
 
                             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

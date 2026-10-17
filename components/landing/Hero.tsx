@@ -139,91 +139,16 @@ export default function Hero() {
                     </div>
                 </div>
 
-                {/* Right Column: Live Interactive Google Meet / MS Teams Preview Dashboard */}
-                <div className="relative mx-auto w-full max-w-xl">
-                    <div className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-tr from-blue-500/20 via-indigo-500/20 to-cyan-500/20 blur-3xl" />
+                {/* Right Column: Large Company Logo (Replacing the design box) */}
+                <div className="relative mx-auto flex w-full max-w-lg items-center justify-center py-6">
+                    <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-gradient-to-tr from-cyan-500/20 via-blue-500/20 to-indigo-500/20 blur-3xl" />
 
-                    <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-[#0d1017] p-3 shadow-2xl text-white">
-                        {/* Session Top Bar */}
-                        <div className="flex items-center justify-between rounded-2xl bg-slate-950/80 px-4 py-3 border border-slate-800/80">
-                            <div className="flex items-center gap-2.5">
-                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 font-bold text-xs text-white">
-                                    V
-                                </span>
-                                <div>
-                                    <p className="text-xs font-bold text-white">VLSI Floorplan Review</p>
-                                    <p className="text-[10px] text-slate-400">WebRTC P2P · HD Audio Active</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    Live
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Google Meet 50/50 Grid Demo Simulation */}
-                        <div className="mt-3 grid gap-3 grid-cols-2">
-                            {/* Participant 1: Host */}
-                            <div className="relative aspect-[1.3] overflow-hidden rounded-2xl bg-gradient-to-br from-blue-950 via-slate-900 to-slate-950 p-3 border border-blue-500/40 shadow-inner">
-                                <div className="flex h-full w-full flex-col items-center justify-center">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/30">
-                                        AG
-                                    </div>
-                                    <div className="mt-2 flex items-center gap-1">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                        <span className="text-[10px] font-semibold text-emerald-300">Speaking...</span>
-                                    </div>
-                                </div>
-                                <div className="absolute bottom-2.5 left-2.5 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] font-medium text-slate-200 backdrop-blur-sm">
-                                    A. Gautam (You)
-                                </div>
-                                <span className="absolute top-2.5 right-2.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 p-1 text-[10px] text-emerald-300">
-                                    🎤
-                                </span>
-                            </div>
-
-                            {/* Participant 2: Remote Peer */}
-                            <div className="relative aspect-[1.3] overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-3 border border-slate-800 shadow-inner">
-                                <div className="flex h-full w-full flex-col items-center justify-center">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-lg font-bold text-white shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-400/30">
-                                        RK
-                                    </div>
-                                    <p className="mt-2 text-[10px] text-slate-400">Physical Design Lead</p>
-                                </div>
-                                <div className="absolute bottom-2.5 left-2.5 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] font-medium text-slate-200 backdrop-blur-sm">
-                                    R. Kumar
-                                </div>
-                                <span className="absolute top-2.5 right-2.5 rounded-md bg-slate-800/80 p-1 text-[10px] text-slate-300">
-                                    🎤
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Real-time System Telemetry Cards */}
-                        <div className="mt-3 rounded-2xl bg-slate-950/60 p-3.5 border border-slate-800/80">
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                                <span>Platform Telemetry</span>
-                                <span className="text-[10px] text-blue-400 font-mono">100% Operational</span>
-                            </div>
-                            <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px]">
-                                <div className="rounded-xl bg-slate-900/80 p-2 border border-slate-800 flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                                    <div>
-                                        <p className="font-semibold text-slate-200">MongoDB</p>
-                                        <p className="text-[9px] text-slate-400">127.0.0.1:27017</p>
-                                    </div>
-                                </div>
-                                <div className="rounded-xl bg-slate-900/80 p-2 border border-slate-800 flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                                    <div>
-                                        <p className="font-semibold text-slate-200">P2P Audio</p>
-                                        <p className="text-[9px] text-slate-400">Opus Fullband 48kHz</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="relative flex flex-col items-center justify-center p-6 text-center">
+                        <img
+                            src="/logo.png"
+                            alt="VLSI Labs Logo"
+                            className="h-auto max-h-[380px] w-auto max-w-full drop-shadow-2xl transition-transform duration-300 hover:scale-105"
+                        />
                     </div>
                 </div>
             </div>

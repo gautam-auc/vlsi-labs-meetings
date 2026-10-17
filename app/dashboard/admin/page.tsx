@@ -44,7 +44,10 @@ interface AdminStats {
   isOffline?: boolean;
 }
 
+import { useRouter } from "next/navigation";
+
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,8 +73,16 @@ export default function AdminDashboardPage() {
   }
 
   useEffect(() => {
+    const email = (localStorage.getItem("vlsilabs_user_email") || "").toLowerCase().trim();
+    const role = localStorage.getItem("vlsilabs_user_role") || "";
+    const adminEmails = ["agautamauc@gmail.com", "agautamrpr@gmail.com"];
+    const isAuthorized = adminEmails.includes(email) || role === "admin";
+    if (!isAuthorized) {
+      router.push("/dashboard");
+      return;
+    }
     fetchStats();
-  }, []);
+  }, [router]);
 
   async function handleRoleChange(userId: string, newRole: "admin" | "user") {
     try {

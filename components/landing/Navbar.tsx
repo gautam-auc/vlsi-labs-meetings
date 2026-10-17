@@ -17,9 +17,11 @@ export default function Navbar() {
             <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 text-sm font-bold text-white shadow-lg shadow-blue-500/25">
-                        V
-                    </div>
+                    <img
+                        src="/logo.png"
+                        alt="VLSI Labs Logo"
+                        className="h-9 w-auto object-contain"
+                    />
 
                     <div>
                         <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
