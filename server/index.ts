@@ -23,6 +23,8 @@ const io = new Server(httpServer, {
         origin: "*",
         methods: ["GET", "POST"],
     },
+    pingInterval: 8000,
+    pingTimeout: 10000,
 });
 
 io.on("connection", (socket) => {
@@ -37,27 +39,51 @@ io.on("connection", (socket) => {
             meetingId: string;
             participantName: string;
         }) => {
+            const cleanName = (participantName || "Participant").trim();
             console.log(
-                `${participantName} joined meeting ${meetingId}`
+                `${cleanName} (${socket.id}) joining meeting ${meetingId}`
             );
+
+            const existingRoom = io.sockets.adapter.rooms.get(meetingId);
+
+            // Clean up any stale/ghost sockets for the same participant name (e.g. mobile reload)
+            if (existingRoom && cleanName !== "Participant") {
+                for (const oldId of Array.from(existingRoom)) {
+                    if (oldId !== socket.id) {
+                        const oldSocket = io.sockets.sockets.get(oldId);
+                        if (
+                            oldSocket &&
+                            oldSocket.data?.participantName === cleanName
+                        ) {
+                            console.log(
+                                `Evicting stale socket ${oldId} for rejoining user ${cleanName}`
+                            );
+                            socket.to(meetingId).emit("user-left", {
+                                socketId: oldId,
+                            });
+                            oldSocket.leave(meetingId);
+                            try {
+                                oldSocket.disconnect(true);
+                            } catch {}
+                        }
+                    }
+                }
+            }
 
             socket.join(meetingId);
 
-            const room =
-                io.sockets.adapter.rooms.get(meetingId);
+            const room = io.sockets.adapter.rooms.get(meetingId);
 
             const existingUsers = room
                 ? Array.from(room)
                       .filter((id) => id !== socket.id)
                       .map((id) => {
-                          const userSocket =
-                              io.sockets.sockets.get(id);
+                          const userSocket = io.sockets.sockets.get(id);
 
                           return {
                               socketId: id,
                               participantName:
-                                  userSocket?.data
-                                      ?.participantName ||
+                                  userSocket?.data?.participantName ||
                                   "Participant",
                           };
                       })
@@ -67,22 +93,15 @@ io.on("connection", (socket) => {
                       })
                 : [];
 
-            socket.emit(
-                "existing-users",
-                existingUsers
-            );
+            socket.emit("existing-users", existingUsers);
 
-            socket.to(meetingId).emit(
-                "user-joined",
-                {
-                    socketId: socket.id,
-                    participantName,
-                }
-            );
+            socket.to(meetingId).emit("user-joined", {
+                socketId: socket.id,
+                participantName: cleanName,
+            });
 
             socket.data.meetingId = meetingId;
-            socket.data.participantName =
-                participantName;
+            socket.data.participantName = cleanName;
         }
     );
 

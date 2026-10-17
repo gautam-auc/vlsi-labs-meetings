@@ -107,8 +107,10 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const [localPreviewStream, setLocalPreviewStream] = useState<MediaStream | null>(null);
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
     const [pinnedSocketId, setPinnedSocketId] = useState<string | null>(null);
-    const [mobileTab, setMobileTab] = useState<"video" | "chat" | "participants">("video");
-    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+    const [isMobile, setIsMobile] = useState(false);
+    const [mobileTab, setMobileTab] = useState<"chat" | "participants">("chat");
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+    const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
     const [chatMessages, setChatMessages] = useState<
         Array<{
@@ -126,6 +128,22 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
     // Call Duration Timer
     const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+    // Responsive screen width detection
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+            if (mobile) {
+                setIsRightPanelOpen(false);
+            } else {
+                setIsRightPanelOpen(true);
+            }
+        };
+        handleResize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     useEffect(() => {
         if (!joined) return;
@@ -208,34 +226,26 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         (socketId: string, name: string, stream?: MediaStream) => {
             if (!socketId || socketId === socketRef.current?.id) return;
 
+            const cleanName = (name || "Participant").trim();
             const remoteStream =
                 stream || remoteStreamsRef.current[socketId] || new MediaStream();
             remoteStreamsRef.current[socketId] = remoteStream;
-            remoteNamesRef.current[socketId] = name || "Participant";
+            remoteNamesRef.current[socketId] = cleanName;
 
             setRemoteParticipants((current) => {
-                const existing = current.find((p) => p.socketId === socketId);
+                // Strict deduplication: remove any existing participant with the same socketId OR same cleanName
+                const filtered = current.filter(
+                    (p) =>
+                        p.socketId !== socketId &&
+                        (cleanName === "Participant" || p.name !== cleanName)
+                );
+
                 const cachedMediaState = remoteMediaStatesRef.current[socketId];
-
-                if (existing) {
-                    return current.map((p) =>
-                        p.socketId === socketId
-                            ? {
-                                  ...p,
-                                  name: name || p.name,
-                                  stream: remoteStream,
-                                  cameraEnabled: cachedMediaState?.cameraEnabled ?? p.cameraEnabled,
-                                  screenSharing: cachedMediaState?.screenSharing ?? p.screenSharing,
-                              }
-                            : p
-                    );
-                }
-
                 return [
-                    ...current,
+                    ...filtered,
                     {
                         socketId,
-                        name: name || "Participant",
+                        name: cleanName,
                         stream: remoteStream,
                         cameraEnabled: cachedMediaState?.cameraEnabled ?? true,
                         screenSharing: cachedMediaState?.screenSharing ?? false,
@@ -427,6 +437,12 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
         remoteNamesRef.current[remoteSocketId] = remoteName;
 
+        if (peerConnectionsRef.current[remoteSocketId]) {
+            try {
+                peerConnectionsRef.current[remoteSocketId].close();
+            } catch {}
+        }
+
         const peerConnection = new RTCPeerConnection({
             iceServers: [
                 { urls: "stun:stun.l.google.com:19302" },
@@ -500,9 +516,22 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         };
 
         peerConnection.onconnectionstatechange = () => {
+            const state = peerConnection.connectionState;
             if (
-                peerConnection.connectionState === "closed" ||
-                peerConnection.connectionState === "disconnected"
+                state === "closed" ||
+                state === "disconnected" ||
+                state === "failed"
+            ) {
+                removeParticipant(remoteSocketId);
+            }
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+            const iceState = peerConnection.iceConnectionState;
+            if (
+                iceState === "failed" ||
+                iceState === "disconnected" ||
+                iceState === "closed"
             ) {
                 removeParticipant(remoteSocketId);
             }
@@ -858,6 +887,76 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     };
 
     /* =========================================================
+       FLIP CAMERA (Mobile front/rear camera toggle)
+    ========================================================= */
+    const flipCamera = async () => {
+        const nextMode = facingMode === "user" ? "environment" : "user";
+        try {
+            const newCameraStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { exact: nextMode },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+            });
+            const newTrack = newCameraStream.getVideoTracks()[0];
+            if (!newTrack) return;
+
+            const stream = localStreamRef.current;
+            if (stream) {
+                const oldTrack = stream.getVideoTracks()[0];
+                if (oldTrack) {
+                    oldTrack.stop();
+                    stream.removeTrack(oldTrack);
+                }
+                stream.addTrack(newTrack);
+
+                await Promise.all(
+                    Object.values(videoSendersRef.current).map(async (sender) => {
+                        try {
+                            await sender.replaceTrack(newTrack);
+                        } catch {}
+                    })
+                );
+
+                setFacingMode(nextMode);
+                setLocalPreviewStream(new MediaStream(stream.getTracks()));
+            }
+        } catch {
+            try {
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: nextMode },
+                });
+                const newTrack = fallbackStream.getVideoTracks()[0];
+                if (!newTrack) return;
+
+                const stream = localStreamRef.current;
+                if (stream) {
+                    const oldTrack = stream.getVideoTracks()[0];
+                    if (oldTrack) {
+                        oldTrack.stop();
+                        stream.removeTrack(oldTrack);
+                    }
+                    stream.addTrack(newTrack);
+
+                    await Promise.all(
+                        Object.values(videoSendersRef.current).map(async (sender) => {
+                            try {
+                                await sender.replaceTrack(newTrack);
+                            } catch {}
+                        })
+                    );
+
+                    setFacingMode(nextMode);
+                    setLocalPreviewStream(new MediaStream(stream.getTracks()));
+                }
+            } catch (fallbackErr) {
+                console.warn("Camera flip fallback note:", fallbackErr);
+            }
+        }
+    };
+
+    /* =========================================================
        SCREEN SHARING (Fixed with renegotiation & keyframes)
     ========================================================= */
     const startScreenSharing = async () => {
@@ -1116,10 +1215,18 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     }
 
     /* =========================================================
-       CALCULATE PARTICIPANTS FOR EXACT IMAGE 2 REFERENCE
+       CALCULATE PARTICIPANTS FOR EXACT IMAGE 2 REFERENCE & MOBILE
     ========================================================= */
-    const activeRemote = remoteParticipants.find((p) => p.socketId === pinnedSocketId) || remoteParticipants[0];
+    const activeRemote =
+        remoteParticipants.find((p) => p.socketId === pinnedSocketId) ||
+        remoteParticipants[0];
     const isSolo = remoteParticipants.length === 0;
+    const isOneOnOne = remoteParticipants.length === 1;
+
+    // Remotes that are NOT currently featured on the main stage
+    const otherRemotes = remoteParticipants.filter(
+        (p) => pinnedSocketId === "local" || p.socketId !== activeRemote?.socketId
+    );
 
     return (
         <main className="relative flex h-[100dvh] min-h-0 w-full overflow-hidden bg-[#181a20] text-white select-none">
@@ -1135,12 +1242,20 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 />
             ))}
 
-            {/* LEFT VERTICAL NAVIGATION DOCK (Exact Image 2 Style) */}
+            {/* LEFT VERTICAL NAVIGATION DOCK (Hidden on mobile, matching Image 2) */}
             <aside className="relative z-20 hidden md:flex w-16 shrink-0 flex-col items-center justify-between border-r border-white/5 bg-[#1a1c24]/90 p-3 backdrop-blur-xl">
                 <div className="flex flex-col items-center gap-6">
                     {/* Logo Icon */}
-                    <a href="/dashboard" title="VLSI Labs Dashboard" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/15 transition p-1">
-                        <img src="/logo.png" alt="Logo" className="h-7 w-auto object-contain" />
+                    <a
+                        href="/dashboard"
+                        title="VLSI Labs Dashboard"
+                        className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/15 transition p-1"
+                    >
+                        <img
+                            src="/logo.png"
+                            alt="Logo"
+                            className="h-7 w-auto object-contain"
+                        />
                     </a>
 
                     {/* Navigation Icons matching Image 2 */}
@@ -1193,13 +1308,13 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             </aside>
 
             {/* MAIN WORKSPACE BODY */}
-            <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden p-3 sm:p-4 gap-3 lg:gap-4">
-                {/* CENTER STAGE (Top Card Header + Active Speaker Stage + Thumbnail Row + Floating Bottom Bar) */}
-                <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 overflow-hidden">
-                    {/* TOP HEADER CARD (Exact Image 2 Style) */}
-                    <div className="flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-[#252834]/80 px-4 py-3 backdrop-blur-xl shadow-lg">
-                        <div className="flex items-center gap-3">
-                            {/* Calendar Day Badge */}
+            <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden p-2 sm:p-4 gap-3 lg:gap-4">
+                {/* CENTER STAGE CONTAINER */}
+                <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 sm:gap-3 overflow-hidden">
+                    {/* TOP HEADER BAR (Responsive) */}
+                    <div className="flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-[#252834]/80 px-3 sm:px-4 py-2.5 sm:py-3 backdrop-blur-xl shadow-lg">
+                        {/* Desktop Header Left */}
+                        <div className="hidden sm:flex items-center gap-3">
                             <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-white text-slate-900 font-bold leading-tight shadow-md">
                                 <span className="text-[9px] font-semibold text-red-600 uppercase">Live</span>
                                 <span className="text-sm">●</span>
@@ -1215,28 +1330,48 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             </div>
                         </div>
 
-                        {/* Right: Live Recording Timer + Copy Link */}
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 rounded-xl bg-black/40 border border-white/5 px-3 py-1.5 text-xs font-medium text-slate-200">
-                                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                        {/* Mobile Header Left */}
+                        <div className="flex sm:hidden items-center gap-2">
+                            <span className="flex h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                            <span className="font-mono text-xs font-bold text-blue-400 truncate max-w-[140px]">
+                                {meetingId}
+                            </span>
+                        </div>
+
+                        {/* Header Right: Live Recording Timer + Flip Camera + Copy Link */}
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-black/40 border border-white/5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-200">
+                                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse hidden xs:inline-block" />
                                 <span className="text-[11px] text-slate-400 hidden sm:inline">Recording Time</span>
-                                <span className="font-mono font-bold text-white">{formatTimer(secondsElapsed)}</span>
+                                <span className="font-mono font-bold text-white text-xs sm:text-sm">{formatTimer(secondsElapsed)}</span>
                             </div>
+
+                            {/* Mobile Quick Camera Flip */}
+                            <button
+                                type="button"
+                                onClick={flipCamera}
+                                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-cyan-300 transition active:scale-90"
+                                title="Flip Camera"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
 
                             <button
                                 type="button"
                                 onClick={copyMeetingUrl}
-                                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition"
+                                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white shadow-md transition"
                             >
                                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                 </svg>
-                                <span>{copiedUrl ? "Copied!" : "Invite"}</span>
+                                <span className="hidden xs:inline">{copiedUrl ? "Copied!" : "Invite"}</span>
                             </button>
                         </div>
                     </div>
 
-                    {/* MAIN ACTIVE PRESENTER / SPEAKER STAGE (Exact Image 2 Top Video Tile) */}
+                    {/* MAIN ACTIVE PRESENTER / SPEAKER STAGE */}
                     <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#161822] shadow-2xl">
                         {isSolo ? (
                             <VideoTile
@@ -1255,6 +1390,16 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 isPinned
                                 onPin={() => setPinnedSocketId(null)}
                             />
+                        ) : pinnedSocketId === "local" ? (
+                            <VideoTile
+                                stream={localPreviewStream}
+                                name={`${participantName} (You · Pinned)`}
+                                muted
+                                micEnabled={micEnabled}
+                                isScreen={isScreenSharing}
+                                isPinned
+                                onPin={() => setPinnedSocketId(null)}
+                            />
                         ) : (
                             <VideoTile
                                 stream={activeRemote ? activeRemote.stream : localPreviewStream}
@@ -1263,39 +1408,81 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 micEnabled={activeRemote ? activeRemote.cameraEnabled !== false : micEnabled}
                                 isScreen={activeRemote ? activeRemote.screenSharing : isScreenSharing}
                                 isPinned={Boolean(pinnedSocketId)}
-                                onPin={() => setPinnedSocketId(activeRemote?.socketId === pinnedSocketId ? null : activeRemote?.socketId || null)}
+                                onPin={() =>
+                                    setPinnedSocketId(
+                                        activeRemote?.socketId === pinnedSocketId
+                                            ? null
+                                            : activeRemote?.socketId || null
+                                    )
+                                }
                             />
+                        )}
+
+                        {/* Mobile Picture-in-Picture (PiP) Window for 1-on-1 calls */}
+                        {isMobile && isOneOnOne && (
+                            <div
+                                onClick={() =>
+                                    setPinnedSocketId(pinnedSocketId === "local" ? null : "local")
+                                }
+                                className="absolute bottom-4 right-3 z-30 h-36 w-24 sm:h-44 sm:w-32 cursor-pointer overflow-hidden rounded-2xl border-2 border-white/25 bg-black/70 shadow-2xl transition active:scale-95"
+                                title="Tap to switch view"
+                            >
+                                <VideoTile
+                                    stream={
+                                        pinnedSocketId === "local"
+                                            ? activeRemote?.stream || null
+                                            : localPreviewStream
+                                    }
+                                    name={
+                                        pinnedSocketId === "local"
+                                            ? activeRemote?.name || "Participant"
+                                            : "You"
+                                    }
+                                    muted={pinnedSocketId !== "local"}
+                                    micEnabled={
+                                        pinnedSocketId === "local"
+                                            ? activeRemote?.cameraEnabled !== false
+                                            : micEnabled
+                                    }
+                                    isScreen={
+                                        pinnedSocketId === "local"
+                                            ? activeRemote?.screenSharing
+                                            : isScreenSharing
+                                    }
+                                />
+                                <div className="absolute bottom-1 right-1 rounded-md bg-black/60 px-1 py-0.5 text-[8px] font-semibold text-white">
+                                    Swap
+                                </div>
+                            </div>
                         )}
                     </div>
 
-                    {/* PARTICIPANT THUMBNAIL ROW (Exact Image 2 Bottom Row) */}
-                    <div className="flex h-28 sm:h-36 shrink-0 gap-3 overflow-x-auto pb-1 scrollbar-thin">
-                        {/* Local User Tile */}
-                        <div
-                            onClick={() => setPinnedSocketId("local")}
-                            className="relative h-full w-40 sm:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 transition-all hover:border-blue-500/80"
-                        >
-                            <VideoTile
-                                stream={localPreviewStream}
-                                name="You"
-                                muted
-                                micEnabled={micEnabled}
-                                isScreen={isScreenSharing}
-                            />
-                        </div>
+                    {/* PARTICIPANT THUMBNAIL ROW (No Duplication with Stage!) */}
+                    {/* On mobile 1-on-1, PiP is used to leave 100% height for the video */}
+                    {(!isMobile || remoteParticipants.length > 1) && !isSolo && (
+                        <div className="flex h-24 sm:h-32 md:h-36 shrink-0 gap-2.5 sm:gap-3 overflow-x-auto pb-1 scrollbar-thin">
+                            {/* Local User Tile (rendered in row only if NOT pinned on stage) */}
+                            {pinnedSocketId !== "local" && (
+                                <div
+                                    onClick={() => setPinnedSocketId("local")}
+                                    className="relative h-full w-36 sm:w-44 md:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 transition-all hover:border-blue-500/80"
+                                >
+                                    <VideoTile
+                                        stream={localPreviewStream}
+                                        name="You"
+                                        muted
+                                        micEnabled={micEnabled}
+                                        isScreen={isScreenSharing}
+                                    />
+                                </div>
+                            )}
 
-                        {/* Remote Participants (No Duplication) */}
-                        {remoteParticipants.map((p) => {
-                            const isCurrentActive = activeRemote?.socketId === p.socketId;
-                            return (
+                            {/* Remote Participants (Only those not featured on the main stage) */}
+                            {otherRemotes.map((p) => (
                                 <div
                                     key={p.socketId}
                                     onClick={() => setPinnedSocketId(p.socketId)}
-                                    className={`relative h-full w-40 sm:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border transition-all ${
-                                        isCurrentActive
-                                            ? "border-blue-500 shadow-md shadow-blue-500/30"
-                                            : "border-white/10 hover:border-slate-700"
-                                    }`}
+                                    className="relative h-full w-36 sm:w-44 md:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 hover:border-blue-500/80 transition-all"
                                 >
                                     <VideoTile
                                         stream={p.stream}
@@ -1304,13 +1491,13 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         isScreen={p.screenSharing}
                                     />
                                 </div>
-                            );
-                        })}
-                    </div>
+                            ))}
+                        </div>
+                    )}
 
-                    {/* FLOATING BOTTOM CONTROL BAR (Exact Image 2 Centerpiece) */}
+                    {/* FLOATING BOTTOM CONTROL BAR (Responsive) */}
                     <div className="flex shrink-0 items-center justify-center">
-                        <div className="rounded-3xl border border-white/10 bg-[#252834]/90 px-3 sm:px-6 py-2 shadow-2xl backdrop-blur-2xl">
+                        <div className="rounded-3xl border border-white/10 bg-[#252834]/90 px-2 sm:px-6 py-2 shadow-2xl backdrop-blur-2xl">
                             <MeetingControls
                                 micEnabled={micEnabled}
                                 cameraEnabled={cameraEnabled}
@@ -1324,18 +1511,22 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 onToggleChat={() => setIsRightPanelOpen((prev) => !prev)}
                                 isChatOpen={isRightPanelOpen}
                                 unreadChatCount={unreadChatCount}
-                                onToggleParticipants={() => setIsRightPanelOpen(true)}
+                                onToggleParticipants={() => {
+                                    setMobileTab("participants");
+                                    setIsRightPanelOpen(true);
+                                }}
                                 participantCount={1 + remoteParticipants.length}
                                 onSendReaction={sendReaction}
+                                onFlipCamera={flipCamera}
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* RIGHT PANEL: TWO CARDS MATCHING EXACT IMAGE 2 REFERENCE */}
+                {/* RIGHT PANEL FOR DESKTOP (Image 2 style dual cards) */}
                 {isRightPanelOpen && (
-                    <aside className="relative flex w-80 lg:w-92 shrink-0 flex-col gap-3 overflow-hidden">
-                        {/* CARD 1 (Top): PARTICIPANT ROSTER (Exact Image 2 Top Right Card) */}
+                    <aside className="relative hidden md:flex w-80 lg:w-92 shrink-0 flex-col gap-3 overflow-hidden">
+                        {/* CARD 1 (Top): PARTICIPANT ROSTER */}
                         <div className="flex max-h-56 shrink-0 flex-col rounded-2xl border border-white/10 bg-[#252834]/80 p-4 shadow-xl backdrop-blur-xl overflow-hidden">
                             <div className="flex items-center justify-between pb-3 border-b border-white/5">
                                 <h3 className="text-xs font-bold text-white tracking-wide">
@@ -1383,7 +1574,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             </div>
                         </div>
 
-                        {/* CARD 2 (Bottom): MESSAGES LIVE CHAT (Exact Image 2 Bottom Right Card) */}
+                        {/* CARD 2 (Bottom): MESSAGES LIVE CHAT */}
                         <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/10 bg-[#252834]/80 p-4 shadow-xl backdrop-blur-xl overflow-hidden">
                             <div className="flex items-center justify-between pb-3 border-b border-white/5">
                                 <h3 className="text-xs font-bold text-white tracking-wide">
@@ -1441,7 +1632,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 )}
                             </div>
 
-                            {/* Bottom Message Input Bar (Matching Image 2 with Paperclip + Message text + Send) */}
+                            {/* Bottom Message Input Bar */}
                             <form
                                 onSubmit={sendChatMessage}
                                 className="flex items-center gap-2 pt-2 border-t border-white/5"
@@ -1477,6 +1668,144 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             </form>
                         </div>
                     </aside>
+                )}
+
+                {/* RIGHT PANEL FOR MOBILE (Overlay Bottom Sheet Drawer) */}
+                {isRightPanelOpen && (
+                    <div className="fixed inset-x-0 bottom-0 top-14 z-50 flex md:hidden flex-col rounded-t-3xl border-t border-white/15 bg-[#161822]/98 p-4 shadow-2xl backdrop-blur-2xl">
+                        {/* Drawer Header with Tabs & Close */}
+                        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                            <div className="flex items-center gap-1.5 rounded-xl bg-white/5 p-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileTab("chat")}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                                        mobileTab === "chat"
+                                            ? "bg-blue-600 text-white shadow"
+                                            : "text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    Messages {unreadChatCount > 0 && `(${unreadChatCount})`}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileTab("participants")}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                                        mobileTab === "participants"
+                                            ? "bg-blue-600 text-white shadow"
+                                            : "text-slate-400 hover:text-white"
+                                    }`}
+                                >
+                                    Participants ({1 + remoteParticipants.length})
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsRightPanelOpen(false)}
+                                className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-slate-300 hover:text-white"
+                                title="Close"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Mobile Drawer Content */}
+                        {mobileTab === "chat" ? (
+                            <div className="flex flex-1 min-h-0 flex-col pt-3">
+                                <div className="flex-1 overflow-y-auto space-y-3 pb-2 scrollbar-thin">
+                                    {chatMessages.length === 0 ? (
+                                        <div className="flex h-full flex-col items-center justify-center text-center p-4 text-slate-400">
+                                            <p className="text-xs">No messages yet.</p>
+                                            <p className="mt-1 text-[10px] text-slate-500">Send a message below.</p>
+                                        </div>
+                                    ) : (
+                                        chatMessages.map((msg) => (
+                                            <div
+                                                key={msg.id}
+                                                className={`flex items-start gap-2.5 ${
+                                                    msg.isSelf ? "flex-row-reverse" : "flex-row"
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white ${
+                                                        msg.isSelf ? "bg-blue-600" : "bg-purple-600"
+                                                    }`}
+                                                >
+                                                    {msg.senderName.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"}`}>
+                                                    <div
+                                                        className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed max-w-[260px] break-words ${
+                                                            msg.isSelf
+                                                                ? "bg-blue-600 text-white rounded-tr-sm"
+                                                                : "bg-white/10 text-slate-100 rounded-tl-sm border border-white/5"
+                                                        }`}
+                                                    >
+                                                        {msg.text}
+                                                    </div>
+                                                    <span className="mt-1 text-[9px] text-slate-400">{msg.time}</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                <form onSubmit={sendChatMessage} className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                    <input
+                                        type="text"
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        placeholder="Message..."
+                                        className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!chatInput.trim()}
+                                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white disabled:opacity-40"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        ) : (
+                            <div className="flex-1 overflow-y-auto pt-3 space-y-2.5">
+                                <div className="flex items-center justify-between p-2 rounded-xl bg-white/5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-bold text-xs text-white">
+                                            {participantName ? participantName.charAt(0).toUpperCase() : "Y"}
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-200">
+                                            {participantName || "You"} (Host)
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                        <span>{cameraEnabled ? "📹" : "🚫"}</span>
+                                        <span>{micEnabled ? "🎤" : "🔇"}</span>
+                                    </div>
+                                </div>
+
+                                {remoteParticipants.map((p) => (
+                                    <div key={p.socketId} className="flex items-center justify-between p-2 rounded-xl bg-white/5">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 font-bold text-xs text-white">
+                                                {p.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <span className="text-xs font-medium text-slate-200">
+                                                {p.name}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                            <span>{p.cameraEnabled ? "📹" : "🚫"}</span>
+                                            <span>🎤</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </main>
