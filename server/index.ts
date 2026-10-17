@@ -166,6 +166,24 @@ io.on("connection", (socket) => {
         }
     );
 
+    socket.on(
+        "media-state",
+        (data: {
+            meetingId?: string;
+            cameraEnabled?: boolean;
+            screenSharing?: boolean;
+        }) => {
+            const meetingId = data?.meetingId || socket.data?.meetingId;
+            if (meetingId) {
+                socket.to(meetingId).emit("media-state", {
+                    socketId: socket.id,
+                    cameraEnabled: data.cameraEnabled,
+                    screenSharing: data.screenSharing,
+                });
+            }
+        }
+    );
+
     socket.on("disconnect", () => {
         console.log(
             "User disconnected:",

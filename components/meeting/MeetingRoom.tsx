@@ -196,6 +196,11 @@ export default function MeetingRoom({
     const screenSharingRef =
         useRef(false);
 
+    // Cache remote media states so state changes are never lost before participant mounts
+    const remoteMediaStatesRef = useRef<
+        Record<string, { cameraEnabled: boolean; screenSharing: boolean }>
+    >({});
+
     useEffect(() => {
         participantNameRef.current =
             participantName;
@@ -250,14 +255,16 @@ export default function MeetingRoom({
                 );
             }
 
+            const cachedMediaState = remoteMediaStatesRef.current[socketId];
+
             return [
                 ...current,
                 {
                     socketId,
                     name,
                     stream: remoteStream,
-                    cameraEnabled: true,
-                    screenSharing: false,
+                    cameraEnabled: cachedMediaState?.cameraEnabled ?? true,
+                    screenSharing: cachedMediaState?.screenSharing ?? false,
                 },
             ];
         });
@@ -307,10 +314,58 @@ export default function MeetingRoom({
             socketId
         ];
 
+        delete remoteMediaStatesRef.current[
+            socketId
+        ];
+
         setRemoteParticipants((current) =>
             current.filter(
                 (participant) =>
                     participant.socketId !== socketId
+            )
+        );
+    };
+
+    /* =========================================================
+       REMOTE MEDIA STATE SYNC
+    ========================================================= */
+
+    const applyRemoteMediaState = (
+        socketId: string,
+        mediaState: {
+            cameraEnabled?: boolean;
+            screenSharing?: boolean;
+        }
+    ) => {
+        const prev = remoteMediaStatesRef.current[socketId] || {
+            cameraEnabled: true,
+            screenSharing: false,
+        };
+
+        const updated = {
+            cameraEnabled:
+                mediaState.cameraEnabled !== undefined
+                    ? mediaState.cameraEnabled
+                    : prev.cameraEnabled,
+            screenSharing:
+                mediaState.screenSharing !== undefined
+                    ? mediaState.screenSharing
+                    : prev.screenSharing,
+        };
+
+        remoteMediaStatesRef.current[socketId] = updated;
+
+        setRemoteParticipants((current) =>
+            current.map((participant) =>
+                participant.socketId === socketId
+                    ? {
+                          ...participant,
+                          cameraEnabled: updated.cameraEnabled,
+                          screenSharing: updated.screenSharing,
+                          // Refresh stream reference so React re-evaluates video/screen track
+                          stream: new MediaStream(participant.stream.getTracks()),
+                      }
+                    : participant
             )
         );
     };
@@ -335,15 +390,29 @@ export default function MeetingRoom({
                 screenSharingRef.current,
         };
 
+        // 1. Direct WebRTC DataChannels (ultra low-latency P2P)
         Object.values(
             dataChannelsRef.current
         ).forEach((channel) => {
             if (channel.readyState === "open") {
-                channel.send(
-                    JSON.stringify(state)
-                );
+                try {
+                    channel.send(
+                        JSON.stringify(state)
+                    );
+                } catch (err) {
+                    console.error("Failed to send media-state via DataChannel:", err);
+                }
             }
         });
+
+        // 2. WebSocket signaling fallback (reliable delivery across network firewalls & new joiners)
+        if (socketRef.current?.connected) {
+            socketRef.current.emit("media-state", {
+                meetingId,
+                cameraEnabled: state.cameraEnabled,
+                screenSharing: state.screenSharing,
+            });
+        }
     };
 
     /* =========================================================
@@ -378,19 +447,10 @@ export default function MeetingRoom({
             }
 
             if (message.type === "media-state") {
-                setRemoteParticipants((current) =>
-                    current.map((participant) =>
-                        participant.socketId === socketId
-                            ? {
-                                  ...participant,
-                                  cameraEnabled: message.cameraEnabled,
-                                  screenSharing: message.screenSharing,
-                                  // Refresh stream reference so React re-evaluates video/screen track
-                                  stream: new MediaStream(participant.stream.getTracks()),
-                              }
-                            : participant
-                    )
-                );
+                applyRemoteMediaState(socketId, {
+                    cameraEnabled: message.cameraEnabled,
+                    screenSharing: message.screenSharing,
+                });
             }
         } catch (error) {
             console.error(
@@ -944,6 +1004,9 @@ export default function MeetingRoom({
             data.participantName,
             false
         );
+
+        // Immediately notify newly joined peer of our current camera & screen status
+        sendMediaState();
     };
 
     /* =========================================================
@@ -1254,6 +1317,22 @@ export default function MeetingRoom({
             );
 
             socket.on(
+                "media-state",
+                (data: {
+                    socketId: string;
+                    cameraEnabled?: boolean;
+                    screenSharing?: boolean;
+                }) => {
+                    if (data?.socketId) {
+                        applyRemoteMediaState(data.socketId, {
+                            cameraEnabled: data.cameraEnabled,
+                            screenSharing: data.screenSharing,
+                        });
+                    }
+                }
+            );
+
+            socket.on(
                 "connect_error",
                 (connectionError) => {
                     console.error(
@@ -1291,6 +1370,8 @@ export default function MeetingRoom({
                                 name,
                         }
                     );
+
+                    sendMediaState();
 
                     setJoined(true);
                     setJoining(false);
