@@ -61,6 +61,10 @@ io.on("connection", (socket) => {
                                   "Participant",
                           };
                       })
+                      .filter((u) => {
+                          const s = io.sockets.sockets.get(u.socketId);
+                          return s && s.connected;
+                      })
                 : [];
 
             socket.emit(

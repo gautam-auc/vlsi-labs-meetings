@@ -14,40 +14,7 @@ interface MeetingItem {
     status: "upcoming" | "live" | "completed";
 }
 
-const defaultMeetings: MeetingItem[] = [
-    {
-        id: "VLSI-PROD-SYNC",
-        title: "Product Development",
-        date: "Today",
-        time: "03:00 PM",
-        participants: ["AG", "RK", "PS", "JD"],
-        status: "live",
-    },
-    {
-        id: "VLSI-CLIENT-REVIEW",
-        title: "Client Technical Review",
-        date: "Tomorrow",
-        time: "11:30 AM",
-        participants: ["AG", "PS", "MK"],
-        status: "upcoming",
-    },
-    {
-        id: "VLSI-STANDUP-ENG",
-        title: "Engineering Team Standup",
-        date: "Friday",
-        time: "10:00 AM",
-        participants: ["AG", "RK", "PS", "JD", "MK"],
-        status: "upcoming",
-    },
-    {
-        id: "VLSI-WEEKLY-PLAN",
-        title: "Weekly Planning & Retrospective",
-        date: "Last Monday",
-        time: "04:00 PM",
-        participants: ["AG", "RK", "PS"],
-        status: "completed",
-    },
-];
+const defaultMeetings: MeetingItem[] = [];
 
 export default function MeetingsPage() {
     const [meetings, setMeetings] = useState<MeetingItem[]>(defaultMeetings);

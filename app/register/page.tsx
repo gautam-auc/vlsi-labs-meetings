@@ -29,7 +29,7 @@ export default function RegisterPage() {
             const data = await res.json();
 
             if (!res.ok) {
-                setError(data.error || "Failed to create account. Please try again.");
+                setError(data.error || "User registration requires platform administrator authorization.");
                 setIsLoading(false);
                 return;
             }
@@ -50,10 +50,7 @@ export default function RegisterPage() {
             router.push("/dashboard");
         } catch (err) {
             console.error("Register fetch error:", err);
-            // Fallback for offline local demo
-            if (email) localStorage.setItem("vlsilabs_user_email", email);
-            if (name) localStorage.setItem("vlsilabs_user_name", name);
-            router.push("/dashboard");
+            setError("Platform registration is currently restricted to authorized administrators.");
         } finally {
             setIsLoading(false);
         }
@@ -62,10 +59,8 @@ export default function RegisterPage() {
     return (
         <main className="min-h-screen bg-[var(--background)] text-[var(--text)] transition-colors duration-200">
             <div className="grid min-h-screen lg:grid-cols-2">
-
                 {/* Left branding panel */}
                 <section className="relative hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-12 text-white lg:flex lg:flex-col lg:justify-between overflow-hidden">
-                    {/* Glowing background effects */}
                     <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
                     <div className="pointer-events-none absolute -bottom-20 -right-20 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
 
@@ -85,25 +80,25 @@ export default function RegisterPage() {
                     <div className="relative z-10 max-w-lg">
                         <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/10 px-3.5 py-1 text-xs font-semibold text-blue-300 mb-6">
                             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                            Fast Team Onboarding
+                            Direct Participant Access
                         </div>
 
                         <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
-                            One unified hub for silicon design reviews.
+                            Instant meetings with zero barriers.
                         </h1>
 
                         <p className="mt-6 text-base leading-7 text-slate-300">
-                            Create your engineering workspace, invite cross-functional colleagues, and run low-latency video meetings instantly.
+                            Regular participants do not need an account to join meetings or share screens. Simply enter your meeting code on the home page.
                         </p>
 
                         <div className="mt-8 grid grid-cols-2 gap-4">
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                                <p className="text-2xl font-bold text-white">100%</p>
-                                <p className="mt-1 text-xs text-slate-400">WebRTC Encrypted</p>
+                                <p className="text-2xl font-bold text-white">Direct</p>
+                                <p className="mt-1 text-xs text-slate-400">No Signup Needed to Join</p>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                                <p className="text-2xl font-bold text-white">&lt;50ms</p>
-                                <p className="mt-1 text-xs text-slate-400">Global Peer Latency</p>
+                                <p className="text-2xl font-bold text-white">Secured</p>
+                                <p className="mt-1 text-xs text-slate-400">Admin Control Center</p>
                             </div>
                         </div>
                     </div>
@@ -116,7 +111,6 @@ export default function RegisterPage() {
 
                 {/* Right register panel */}
                 <section className="relative flex flex-col justify-between px-6 py-8 sm:px-12 lg:px-16">
-                    {/* Header bar with Theme Toggle */}
                     <div className="flex items-center justify-between">
                         <div className="lg:hidden">
                             <Link href="/" className="flex items-center gap-2.5">
@@ -131,7 +125,7 @@ export default function RegisterPage() {
                             <ThemeToggle />
                             <Link
                                 href="/"
-                                className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition"
+                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition"
                             >
                                 Home
                             </Link>
@@ -141,16 +135,41 @@ export default function RegisterPage() {
                     <div className="mx-auto w-full max-w-md my-auto py-8">
                         <div>
                             <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                                Get Started
+                                Platform Access
                             </p>
 
                             <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                Create your workspace
+                                Admin Authorization
                             </h2>
 
                             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                Set up your team&apos;s meetings and collaboration center in 30 seconds.
+                                Participants join meetings directly without accounts. Platform login and registration is reserved for administrators.
                             </p>
+                        </div>
+
+                        {/* Direct Meeting Callout Card */}
+                        <div className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-50/70 dark:bg-blue-950/30 p-4">
+                            <p className="text-xs font-bold text-blue-800 dark:text-blue-300">
+                                Looking to join a meeting?
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                You do not need an account. Enter your meeting code or paste your link directly on the home page.
+                            </p>
+                            <div className="mt-3 flex gap-2">
+                                <Link
+                                    href="/"
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+                                >
+                                    <span>Go to Meeting Launcher</span>
+                                    <span>→</span>
+                                </Link>
+                                <Link
+                                    href="/login"
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                                >
+                                    Admin Login
+                                </Link>
+                            </div>
                         </div>
 
                         {/* Error Alert */}
@@ -160,7 +179,7 @@ export default function RegisterPage() {
                             </div>
                         )}
 
-                        {/* Form */}
+                        {/* Registration Form for authorized administrators */}
                         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                             <div>
                                 <label
@@ -177,7 +196,7 @@ export default function RegisterPage() {
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="e.g. Alex Gautam"
+                                    placeholder="e.g. A. Gautam"
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                             </div>
@@ -187,7 +206,7 @@ export default function RegisterPage() {
                                     htmlFor="email"
                                     className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
                                 >
-                                    Work Email
+                                    Admin Email
                                 </label>
 
                                 <input
@@ -197,27 +216,7 @@ export default function RegisterPage() {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="name@company.com"
-                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                                />
-                            </div>
-
-                            <div>
-                                <label
-                                    htmlFor="workspace"
-                                    className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
-                                >
-                                    Workspace / Organization Name
-                                </label>
-
-                                <input
-                                    id="workspace"
-                                    name="workspace"
-                                    type="text"
-                                    required
-                                    value={workspace}
-                                    onChange={(e) => setWorkspace(e.target.value)}
-                                    placeholder="e.g. VLSI Silicon Team"
+                                    placeholder="agautamauc@gmail.com"
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                             </div>
@@ -237,7 +236,26 @@ export default function RegisterPage() {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Create a secure password"
+                                    placeholder="••••••••••••"
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="workspace"
+                                    className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                >
+                                    Admin Workspace Domain
+                                </label>
+
+                                <input
+                                    id="workspace"
+                                    name="workspace"
+                                    type="text"
+                                    value={workspace}
+                                    onChange={(e) => setWorkspace(e.target.value)}
+                                    placeholder="vlsilabs.internal"
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                             </div>
@@ -245,31 +263,25 @@ export default function RegisterPage() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition disabled:opacity-70 mt-2"
+                                className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
                             >
-                                {isLoading ? "Creating Workspace..." : "Create Workspace & Continue →"}
+                                {isLoading ? "Verifying Authorization..." : "Request Admin Account"}
                             </button>
                         </form>
 
-                        {/* Sign in Link */}
-                        <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
-                            Already have an account?{" "}
+                        <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                            Already have an administrator account?{" "}
                             <Link
                                 href="/login"
                                 className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                             >
-                                Sign in
+                                Sign In
                             </Link>
-                        </p>
+                        </div>
                     </div>
 
-                    <div className="pt-4 text-center">
-                        <Link
-                            href="/"
-                            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition"
-                        >
-                            ← Back to Home
-                        </Link>
+                    <div className="text-center text-xs text-slate-400">
+                        Protected by VLSI Labs Enterprise Security Architecture
                     </div>
                 </section>
             </div>

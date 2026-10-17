@@ -9,19 +9,19 @@ export async function GET() {
 
     if (!db) {
       return NextResponse.json({
-        totalMeetings: 3,
-        activeMeetings: 1,
-        upcomingMeetings: 1,
-        completedMeetings: 1,
+        totalMeetings: 0,
+        activeMeetings: 0,
+        upcomingMeetings: 0,
+        completedMeetings: 0,
         totalUsers: 1,
         adminUsers: 1,
         meetings: [],
         users: [],
         daasMetrics: {
-          avgDurationMinutes: 45,
-          totalHoursConducted: 2.5,
-          estDataTransferredGb: 1.8,
-          activeMeetingRatio: "33%",
+          avgDurationMinutes: 0,
+          totalHoursConducted: 0,
+          estDataTransferredGb: 0,
+          activeMeetingRatio: "0%",
         },
         isOffline: true,
       });

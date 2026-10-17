@@ -13,32 +13,7 @@ export async function GET(request: Request) {
     if (!db) {
       // Offline fallback: Return standard initial meetings
       return NextResponse.json({
-        meetings: [
-          {
-            meetingId: "VLSI-PROD-SYNC",
-            title: "Product Development",
-            date: "Today",
-            time: "03:00 PM",
-            status: "live",
-            participants: ["AG", "RK", "PS", "JD"],
-          },
-          {
-            meetingId: "VLSI-CLIENT-REVIEW",
-            title: "Client Technical Review",
-            date: "Tomorrow",
-            time: "11:30 AM",
-            status: "upcoming",
-            participants: ["AG", "PS", "MK"],
-          },
-          {
-            meetingId: "VLSI-STANDUP-ENG",
-            title: "Engineering Team Standup",
-            date: "Friday",
-            time: "10:00 AM",
-            status: "upcoming",
-            participants: ["AG", "RK", "PS", "JD", "MK"],
-          },
-        ],
+        meetings: [],
         isOffline: true,
       });
     }

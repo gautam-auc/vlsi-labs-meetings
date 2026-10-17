@@ -1,38 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "../../components/dashboard/Sidebar";
 import Header from "../../components/dashboard/Header";
 import StatsCard from "../../components/dashboard/StatsCard";
 import MeetingCard from "../../components/dashboard/MeetingCard";
 
-const initialMeetings = [
-    {
-        title: "Product Development",
-        date: "Today",
-        time: "03:00 PM",
-        participants: ["AG", "RK", "PS", "JD"],
-        status: "upcoming" as const,
-        meetingId: "product-dev-session",
-    },
-    {
-        title: "Client Discussion",
-        date: "Tomorrow",
-        time: "11:30 AM",
-        participants: ["AG", "PS", "MK"],
-        status: "upcoming" as const,
-        meetingId: "client-sync-room",
-    },
-    {
-        title: "Team Standup",
-        date: "Friday",
-        time: "10:00 AM",
-        participants: ["AG", "RK", "PS", "JD", "MK"],
-        status: "upcoming" as const,
-        meetingId: "weekly-standup",
-    },
-];
+const initialMeetings: any[] = [];
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -40,27 +15,51 @@ export default function DashboardPage() {
     const [joinCode, setJoinCode] = useState("");
     const [joinError, setJoinError] = useState("");
 
-    useState(() => {
-        try {
-            if (typeof window !== "undefined") {
+    useEffect(() => {
+        async function load() {
+            try {
+                const res = await fetch("/api/meetings");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.meetings) && data.meetings.length > 0) {
+                        setMeetings(
+                            data.meetings.map((m: any) => ({
+                                title: m.title || "Meeting",
+                                date: m.date || "Today",
+                                time: m.time || "Now",
+                                participants: Array.isArray(m.participants) ? m.participants : ["Host"],
+                                status: m.status || "upcoming",
+                                meetingId: m.meetingId || m.id,
+                            }))
+                        );
+                        return;
+                    }
+                }
+            } catch {}
+
+            try {
                 const saved = localStorage.getItem("vlsilabs_meetings");
                 if (saved) {
                     const parsed = JSON.parse(saved);
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        const custom = parsed.map((m: any) => ({
-                            title: m.title || "Custom Meeting",
-                            date: m.date || "Scheduled",
-                            time: m.time || "TBD",
-                            participants: m.participants ? m.participants.split(",").map((p: string) => p.trim()) : ["AG"],
-                            status: "upcoming" as const,
-                            meetingId: m.id || "custom-session",
-                        }));
-                        setMeetings([...custom, ...initialMeetings]);
+                        setMeetings(
+                            parsed.map((m: any) => ({
+                                title: m.title || "Custom Meeting",
+                                date: m.date || "Scheduled",
+                                time: m.time || "TBD",
+                                participants: m.participants ? (typeof m.participants === "string" ? m.participants.split(",").map((p: string) => p.trim()) : m.participants) : ["Host"],
+                                status: "upcoming" as const,
+                                meetingId: m.id || m.meetingId || "session",
+                            }))
+                        );
+                        return;
                     }
                 }
-            }
-        } catch (_) {}
-    });
+            } catch {}
+            setMeetings([]);
+        }
+        load();
+    }, []);
 
     const handleQuickJoin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -171,12 +170,34 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    {meetings.map((meeting) => (
-                                        <MeetingCard
-                                            key={`${meeting.meetingId || meeting.title}-${meeting.date}`}
-                                            {...meeting}
-                                        />
-                                    ))}
+                                    {meetings.length > 0 ? (
+                                        meetings.map((meeting) => (
+                                            <MeetingCard
+                                                key={`${meeting.meetingId || meeting.title}-${meeting.date}`}
+                                                {...meeting}
+                                            />
+                                        ))
+                                    ) : (
+                                        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 p-8 text-center">
+                                            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                                                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                            </div>
+                                            <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">
+                                                No meetings scheduled
+                                            </p>
+                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                Your workspace is fresh. Start an instant meeting or schedule one.
+                                            </p>
+                                            <a
+                                                href="/meetings/create"
+                                                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+                                            >
+                                                + Schedule Meeting
+                                            </a>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
