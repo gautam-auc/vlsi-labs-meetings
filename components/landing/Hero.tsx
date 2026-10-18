@@ -139,15 +139,17 @@ export default function Hero() {
                     </div>
                 </div>
 
-                {/* Right Column: Large Company Logo (Replacing the design box) */}
-                <div className="relative mx-auto flex w-full max-w-lg items-center justify-center py-6">
-                    <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-gradient-to-tr from-cyan-500/20 via-blue-500/20 to-indigo-500/20 blur-3xl" />
+                {/* Right Column: Large Company Logo (Enlarged with Radiant Multi-Color Backlight) */}
+                <div className="relative mx-auto flex w-full max-w-xl lg:max-w-2xl items-center justify-center py-8">
+                    {/* Multi-layered ambient radiant backlights */}
+                    <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[3rem] bg-gradient-to-tr from-cyan-400/30 via-blue-500/30 to-indigo-600/30 blur-3xl opacity-80 dark:opacity-90 animate-pulse" />
+                    <div className="pointer-events-none absolute -inset-2 -z-10 rounded-full bg-blue-500/20 blur-2xl" />
 
-                    <div className="relative flex flex-col items-center justify-center p-6 text-center">
+                    <div className="relative flex flex-col items-center justify-center p-4 sm:p-8 text-center transition-all duration-300">
                         <img
                             src="/logo.png"
                             alt="VLSI Labs Logo"
-                            className="h-auto max-h-[380px] w-auto max-w-full drop-shadow-2xl transition-transform duration-300 hover:scale-105"
+                            className="h-auto max-h-[460px] sm:max-h-[540px] w-auto max-w-full drop-shadow-[0_20px_50px_rgba(37,99,235,0.35)] dark:drop-shadow-[0_25px_60px_rgba(56,189,248,0.4)] transition-transform duration-500 hover:scale-[1.03]"
                         />
                     </div>
                 </div>

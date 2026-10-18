@@ -89,6 +89,26 @@ function RemoteAudioSink({
     return <audio ref={audioRef} autoPlay playsInline muted={muted} className="hidden" />;
 }
 
+function MeetingDurationTimer({ joined }: { joined: boolean }) {
+    const [seconds, setSeconds] = useState(0);
+
+    useEffect(() => {
+        if (!joined) return;
+        const interval = setInterval(() => {
+            setSeconds((prev) => prev + 1);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [joined]);
+
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const formatted = hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+
+    return <span className="font-mono font-bold text-white text-xs sm:text-sm">{formatted}</span>;
+}
+
 export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const router = useRouter();
 
@@ -126,40 +146,32 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const [copiedUrl, setCopiedUrl] = useState(false);
     const [reactions, setReactions] = useState<Array<{ id: string; emoji: string }>>([]);
 
-    // Call Duration Timer
-    const [secondsElapsed, setSecondsElapsed] = useState(0);
+    // Mobile chat input ref for stable focus preservation
+    const mobileChatInputRef = useRef<HTMLInputElement | null>(null);
 
-    // Responsive screen width detection
+    // Responsive screen width detection (strictly ignores mobile height shrinking from virtual keyboard)
     useEffect(() => {
+        const isMobileInitial = window.innerWidth < 768;
+        setIsMobile(isMobileInitial);
+        if (!isMobileInitial) {
+            setIsRightPanelOpen(true);
+        }
+
         const handleResize = () => {
-            const mobile = window.innerWidth < 768;
-            setIsMobile(mobile);
-            if (mobile) {
-                setIsRightPanelOpen(false);
-            } else {
-                setIsRightPanelOpen(true);
-            }
+            const width = window.innerWidth;
+            const mobile = width < 768;
+            setIsMobile((prev) => {
+                if (prev !== mobile) {
+                    setIsRightPanelOpen(!mobile);
+                    return mobile;
+                }
+                return prev;
+            });
         };
-        handleResize();
+
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, []);
-
-    useEffect(() => {
-        if (!joined) return;
-        const interval = setInterval(() => {
-            setSecondsElapsed((prev) => prev + 1);
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [joined]);
-
-    const formatTimer = (totalSeconds: number) => {
-        const hrs = Math.floor(totalSeconds / 3600);
-        const mins = Math.floor((totalSeconds % 3600) / 60);
-        const secs = totalSeconds % 60;
-        const pad = (n: number) => n.toString().padStart(2, "0");
-        return hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
-    };
 
     /* =========================================================
        STREAM & SOCKET REFS
@@ -313,6 +325,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                           ...p,
                           cameraEnabled: updated.cameraEnabled,
                           screenSharing: updated.screenSharing,
+                          stream: remoteStreamsRef.current[socketId] || p.stream,
                       }
                     : p
             )
@@ -983,13 +996,15 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
                 // Renegotiation ensures receiver's WebRTC decoder resets dimensions immediately
                 try {
-                    const offer = await pc.createOffer();
-                    await pc.setLocalDescription(offer);
-                    socketRef.current?.emit("offer", {
-                        target: socketId,
-                        offer,
-                        participantName: participantNameRef.current,
-                    });
+                    if (pc.signalingState === "stable") {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        socketRef.current?.emit("offer", {
+                            target: socketId,
+                            offer,
+                            participantName: participantNameRef.current,
+                        });
+                    }
                 } catch (renegErr) {
                     console.warn("Screen share renegotiation notice:", renegErr);
                 }
@@ -1022,13 +1037,15 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 await sender.replaceTrack(cameraEnabledRef.current ? cameraTrack : null);
             }
             try {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socketRef.current?.emit("offer", {
-                    target: socketId,
-                    offer,
-                    participantName: participantNameRef.current,
-                });
+                if (pc.signalingState === "stable") {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    socketRef.current?.emit("offer", {
+                        target: socketId,
+                        offer,
+                        participantName: participantNameRef.current,
+                    });
+                }
             } catch (err) {}
         }
 
@@ -1064,6 +1081,9 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
         setChatMessages((prev) => [...prev, selfMsg]);
         setChatInput("");
+        setTimeout(() => {
+            mobileChatInputRef.current?.focus();
+        }, 50);
 
         const peerPayload = JSON.stringify({
             type: "chat-message",
@@ -1219,6 +1239,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     ========================================================= */
     const activeRemote =
         remoteParticipants.find((p) => p.socketId === pinnedSocketId) ||
+        remoteParticipants.find((p) => p.screenSharing) ||
         remoteParticipants[0];
     const isSolo = remoteParticipants.length === 0;
     const isOneOnOne = remoteParticipants.length === 1;
@@ -1343,7 +1364,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-black/40 border border-white/5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-200">
                                 <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse hidden xs:inline-block" />
                                 <span className="text-[11px] text-slate-400 hidden sm:inline">Recording Time</span>
-                                <span className="font-mono font-bold text-white text-xs sm:text-sm">{formatTimer(secondsElapsed)}</span>
+                                <MeetingDurationTimer joined={joined} />
                             </div>
 
                             {/* Mobile Quick Camera Flip */}
@@ -1753,10 +1774,15 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
                                 <form onSubmit={sendChatMessage} className="flex items-center gap-2 pt-2 border-t border-white/10">
                                     <input
+                                        ref={mobileChatInputRef}
                                         type="text"
                                         value={chatInput}
                                         onChange={(e) => setChatInput(e.target.value)}
-                                        placeholder="Message..."
+                                        placeholder="Type a message..."
+                                        autoComplete="off"
+                                        autoCorrect="off"
+                                        spellCheck="false"
+                                        inputMode="text"
                                         className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
                                     />
                                     <button

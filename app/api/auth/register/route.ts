@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { hashPassword, generateToken } from "../../../../lib/auth";
+import { isUserAdmin } from "../../../../lib/admin";
 
 export async function POST(request: Request) {
   try {
@@ -57,11 +58,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Strict role allocation: only whitelist gets admin, all other new users get "user"
+    const role = isUserAdmin(normalizedEmail) ? "admin" : "user";
     const hashedPassword = await hashPassword(password);
     const newUser = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
+      role,
       workspace: workspace || "VLSI Labs Engineering",
     });
 
@@ -79,6 +83,7 @@ export async function POST(request: Request) {
           id: newUser._id.toString(),
           name: newUser.name,
           email: newUser.email,
+          role: newUser.role,
           workspace: newUser.workspace,
         },
         token,

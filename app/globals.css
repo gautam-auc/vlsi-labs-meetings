@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -6,23 +6,31 @@
 :root {
   --background: #f8fafc;
   --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
   --text: #0f172a;
   --muted: #64748b;
   --border: #e2e8f0;
   --primary: #2563eb;
+  --primary-hover: #1d4ed8;
   --secondary: #6366f1;
-  --danger: #dc2626;
-  --success: #059669;
+  --accent-cyan: #06b6d4;
+  --accent-purple: #8b5cf6;
+  --danger: #ef4444;
+  --success: #10b981;
 }
 
 .dark {
-  --background: #111215;
-  --surface: #18191f;
+  --background: #080c14;
+  --surface: #0f172a;
+  --surface-elevated: #1e293b;
   --text: #f8fafc;
-  --muted: #8c909e;
-  --border: #242630;
-  --primary: #3b82f6;
+  --muted: #94a3b8;
+  --border: #1e293b;
+  --primary: #38bdf8;
+  --primary-hover: #0284c7;
   --secondary: #818cf8;
+  --accent-cyan: #22d3ee;
+  --accent-purple: #a855f7;
   --danger: #f87171;
   --success: #34d399;
 }
@@ -37,12 +45,54 @@ html {
 
 body {
   margin: 0;
-  background-color: #111215;
-  color: #f8fafc;
+  background-color: var(--background);
+  color: var(--text);
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Eye-Catching Gradient & Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glow-card {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.glow-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px -8px rgba(56, 189, 248, 0.15);
+}
+
+.dark .glow-card:hover {
+  box-shadow: 0 16px 40px -8px rgba(56, 189, 248, 0.22);
+}
+
+/* Gradient text accents */
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-blue {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Never apply theme filters to video streams per PDF rule */

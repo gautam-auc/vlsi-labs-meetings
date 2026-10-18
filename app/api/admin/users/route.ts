@@ -44,3 +44,32 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required." }, { status: 400 });
+    }
+
+    const db = await connectToDatabase();
+    if (!db) {
+      return NextResponse.json({ message: "User deleted (Local mode)", isOffline: true });
+    }
+
+    const deleted = await User.findByIdAndDelete(userId);
+    if (!deleted) {
+      return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      message: `User ${deleted.name} (${deleted.email}) successfully removed.`,
+    });
+  } catch (error: any) {
+    console.error("Admin user delete error:", error);
+    return NextResponse.json({ error: "Failed to delete user." }, { status: 500 });
+  }
+}
+

@@ -17,24 +17,39 @@ export default function Navbar() {
             <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-3">
+                    {/* Light Mode Logo */}
                     <img
                         src="/logo.png"
-                        alt="VLSI Labs Logo"
-                        className="h-9 w-auto object-contain"
+                        alt="VLSI Labs"
+                        className="h-9 w-auto object-contain block dark:hidden"
                     />
 
-                    <div>
-                        <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                    {/* Dark Mode White Bold Text Logo */}
+                    <img
+                        src="/logo-text-white.png"
+                        alt="VLSI LABS"
+                        className="h-7 w-auto object-contain hidden dark:block"
+                    />
+
+                    <div className="block dark:hidden">
+                        <p className="text-sm font-bold tracking-tight text-slate-900 flex items-center gap-2">
                             VLSI Labs
-                            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 border border-emerald-500/20">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 Online
                             </span>
                         </p>
 
-                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <p className="text-[11px] font-medium text-slate-500">
                             Enterprise Meetings
                         </p>
+                    </div>
+
+                    <div className="hidden dark:flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Online
+                        </span>
                     </div>
                 </Link>
 

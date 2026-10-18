@@ -38,7 +38,7 @@ export default function RegisterPage() {
                 localStorage.setItem("vlsilabs_token", data.token);
             }
             if (email) {
-                localStorage.setItem("vlsilabs_user_email", email);
+                localStorage.setItem("vlsilabs_user_email", email.toLowerCase().trim());
             }
             if (name) {
                 localStorage.setItem("vlsilabs_user_name", name);
@@ -46,6 +46,8 @@ export default function RegisterPage() {
             if (workspace) {
                 localStorage.setItem("vlsilabs_workspace", workspace);
             }
+            // Strict role safety: newly registered users get "user" unless on whitelist
+            localStorage.setItem("vlsilabs_user_role", data.user?.role || "user");
 
             router.push("/dashboard");
         } catch (err) {
@@ -60,20 +62,17 @@ export default function RegisterPage() {
         <main className="min-h-screen bg-[var(--background)] text-[var(--text)] transition-colors duration-200">
             <div className="grid min-h-screen lg:grid-cols-2">
                 {/* Left branding panel */}
-                <section className="relative hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 p-12 text-white lg:flex lg:flex-col lg:justify-between overflow-hidden">
-                    <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/20 blur-3xl" />
-                    <div className="pointer-events-none absolute -bottom-20 -right-20 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
+                <section className="relative hidden bg-[#0b0f19] p-12 text-white lg:flex lg:flex-col lg:justify-between overflow-hidden">
+                    <div className="pointer-events-none absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/25 blur-3xl animate-pulse" />
+                    <div className="pointer-events-none absolute -bottom-20 -right-20 h-96 w-96 rounded-full bg-indigo-600/25 blur-3xl" />
 
                     <div className="relative z-10">
                         <Link href="/" className="inline-flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 font-bold text-white shadow-lg shadow-blue-500/30">
-                                V
-                            </div>
-
-                            <div>
-                                <p className="font-bold text-base tracking-tight">VLSI Labs</p>
-                                <p className="text-xs text-slate-400">Enterprise Meetings</p>
-                            </div>
+                            <img
+                                src="/logo-text-white.png"
+                                alt="VLSI LABS"
+                                className="h-9 w-auto object-contain"
+                            />
                         </Link>
                     </div>
 

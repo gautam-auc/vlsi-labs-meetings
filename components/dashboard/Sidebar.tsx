@@ -112,16 +112,23 @@ export default function Sidebar() {
                 {/* Logo Header with Official Company Logo */}
                 <div className="flex h-20 items-center border-b border-slate-100 dark:border-slate-800/80 px-6">
                     <Link href="/" className="flex items-center gap-3">
+                        {/* Light mode emblem */}
                         <img
                             src="/logo.png"
                             alt="VLSI Labs"
-                            className="h-10 w-auto object-contain"
+                            className="h-10 w-auto object-contain block dark:hidden"
                         />
-                        <div>
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        {/* Dark mode white text logo */}
+                        <img
+                            src="/logo-text-white.png"
+                            alt="VLSI LABS"
+                            className="h-7 w-auto object-contain hidden dark:block"
+                        />
+                        <div className="block dark:hidden">
+                            <p className="text-sm font-bold text-slate-900">
                                 VLSI Labs
                             </p>
-                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                            <p className="text-[11px] font-medium text-slate-500">
                                 Meetings
                             </p>
                         </div>
