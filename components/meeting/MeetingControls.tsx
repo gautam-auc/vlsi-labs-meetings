@@ -77,7 +77,35 @@ export default function MeetingControls({
 
             {/* More Options Popover Menu */}
             {showMoreMenu && (
-                <div className="absolute bottom-full right-0 mb-3 z-50 w-52 rounded-2xl border border-white/10 bg-[#1c1e27]/95 p-2 shadow-2xl backdrop-blur-2xl space-y-1 animate-in fade-in slide-in-from-bottom-2">
+                <div className="absolute bottom-full right-0 mb-3 z-50 w-56 rounded-2xl border border-white/10 bg-[#1c1e27]/98 p-2 shadow-2xl backdrop-blur-2xl space-y-1 animate-in fade-in slide-in-from-bottom-2">
+                    {/* Screen Share (Mobile & Quick Access) */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onToggleScreen();
+                            setShowMoreMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
+                    >
+                        <span>💻</span>
+                        <span>{isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}</span>
+                    </button>
+
+                    {/* Live Captions (Mobile & Quick Access) */}
+                    {onToggleCaptions && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onToggleCaptions();
+                                setShowMoreMenu(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
+                        >
+                            <span>💬</span>
+                            <span>{isCaptionsEnabled ? "Turn off Live Captions" : "Turn on Live Captions"}</span>
+                        </button>
+                    )}
+
                     {onToggleNotes && (
                         <button
                             type="button"
@@ -88,7 +116,7 @@ export default function MeetingControls({
                             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
                         >
                             <span>📝</span>
-                            <span>Meeting Notes</span>
+                            <span>In-Meeting Notepad</span>
                         </button>
                     )}
 
@@ -106,6 +134,34 @@ export default function MeetingControls({
                         </button>
                     )}
 
+                    {/* PiP Floating Window */}
+                    {onTogglePiP && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onTogglePiP();
+                                setShowMoreMenu(false);
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
+                        >
+                            <span>🗗</span>
+                            <span>Minimize to PiP</span>
+                        </button>
+                    )}
+
+                    {/* Fullscreen */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            toggleFullscreen();
+                            setShowMoreMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
+                    >
+                        <span>⛶</span>
+                        <span>Toggle Fullscreen</span>
+                    </button>
+
                     {onToggleSpeaker && (
                         <button
                             type="button"
@@ -116,19 +172,19 @@ export default function MeetingControls({
                             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 transition text-left"
                         >
                             <span>{isSpeakerMuted ? "🔇" : "🔊"}</span>
-                            <span>{isSpeakerMuted ? "Unmute Speaker" : "Mute Speaker (Echo Guard)"}</span>
+                            <span>{isSpeakerMuted ? "Unmute Speaker" : "Mute Speaker"}</span>
                         </button>
                     )}
                 </div>
             )}
 
-            {/* Dribbble Meetyu Exact Floating Pill Dock */}
-            <div className="flex items-center gap-2 sm:gap-3 rounded-full border border-white/10 bg-[#20222a]/95 px-3 sm:px-5 py-2.5 sm:py-3 shadow-2xl backdrop-blur-2xl">
-                {/* 1. Fullscreen Button (First button on left in Meetyu) */}
+            {/* Dribbble Meetyu Floating Pill Dock (Responsive for Mobile & Desktop) */}
+            <div className="flex items-center gap-1.5 sm:gap-3 rounded-full border border-white/10 bg-[#20222a]/95 px-2.5 sm:px-5 py-2 sm:py-3 shadow-2xl backdrop-blur-2xl">
+                {/* 1. Fullscreen Button (Desktop Only) */}
                 <button
                     type="button"
                     onClick={toggleFullscreen}
-                    className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/15 text-slate-200 transition hover:scale-105 active:scale-95"
+                    className="hidden sm:flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/15 text-slate-200 transition hover:scale-105 active:scale-95"
                     title="Toggle Fullscreen"
                 >
                     <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -179,7 +235,7 @@ export default function MeetingControls({
                 <button
                     type="button"
                     onClick={onLeave}
-                    className="flex h-10 sm:h-11 items-center gap-2 rounded-full bg-[#ef4444] hover:bg-red-600 px-4 sm:px-6 font-bold text-xs sm:text-sm text-white shadow-lg shadow-red-500/30 transition hover:scale-105 active:scale-95 shrink-0"
+                    className="flex h-10 sm:h-11 items-center gap-1.5 sm:gap-2 rounded-full bg-[#ef4444] hover:bg-red-600 px-3.5 sm:px-6 font-bold text-xs sm:text-sm text-white shadow-lg shadow-red-500/30 transition hover:scale-105 active:scale-95 shrink-0"
                     title="Leave Meeting"
                 >
                     <span>End Meeting</span>
@@ -207,11 +263,11 @@ export default function MeetingControls({
                     )}
                 </button>
 
-                {/* 6. Screen Sharing Toggle */}
+                {/* 6. Screen Sharing Toggle (Desktop Visible, Mobile in More Menu) */}
                 <button
                     type="button"
                     onClick={onToggleScreen}
-                    className={`flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full transition hover:scale-105 active:scale-95 ${
+                    className={`hidden sm:flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full transition hover:scale-105 active:scale-95 ${
                         isScreenSharing
                             ? "bg-[#7c3aed] text-white shadow-purple-500/30"
                             : "bg-white/10 hover:bg-white/15 text-slate-200"
@@ -223,7 +279,7 @@ export default function MeetingControls({
                     </svg>
                 </button>
 
-                {/* 7. Live Captions / Speech-to-Text Toggle */}
+                {/* 7. Live Captions / Speech-to-Text Toggle (Desktop Visible, Mobile in More Menu) */}
                 {onToggleCaptions && (
                     <button
                         type="button"
@@ -239,7 +295,7 @@ export default function MeetingControls({
                     </button>
                 )}
 
-                {/* 8. Picture-in-Picture / Minimize Floating Screen (Google Meet style) */}
+                {/* 8. Picture-in-Picture / Minimize Floating Screen (Desktop Visible, Mobile in More Menu) */}
                 {onTogglePiP && (
                     <button
                         type="button"

@@ -150,6 +150,16 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const [notesText, setNotesText] = useState("");
     const [showCalendarModal, setShowCalendarModal] = useState(false);
 
+    // Accidental Exit Guard & Mobile Screen Share Notice State
+    const [showExitModal, setShowExitModal] = useState(false);
+    const [pendingExitUrl, setPendingExitUrl] = useState("/dashboard");
+    const [mobileScreenShareNotice, setMobileScreenShareNotice] = useState(false);
+
+    const confirmNavTo = (url: string) => {
+        setPendingExitUrl(url);
+        setShowExitModal(true);
+    };
+
     // Video Tile Ref for Native Picture-in-Picture (PiP)
     const mainVideoRef = useRef<VideoTileRef>(null);
 
@@ -1013,6 +1023,17 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
        SCREEN SHARING (Fixed with renegotiation & keyframes)
     ========================================================= */
     const startScreenSharing = async () => {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+            setMobileScreenShareNotice(true);
+            return;
+        }
+
+        const isMobileUA = typeof window !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobileUA) {
+            setMobileScreenShareNotice(true);
+            return;
+        }
+
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
@@ -1054,10 +1075,16 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
             screenSharingRef.current = true;
             setIsScreenSharing(true);
-            setLocalPreviewStream(screenStream);
+            // DO NOT setLocalPreviewStream(screenStream) here: local preview stays camera so presenter sees their face in Tile 1, preventing the infinite mirror tunnel!
             sendMediaState({ screenSharing: true });
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
+                return;
+            }
             console.error("Screen share error:", err);
+            if (typeof window !== "undefined" && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                setMobileScreenShareNotice(true);
+            }
         }
     };
 
@@ -1346,9 +1373,12 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const isSolo = remoteParticipants.length === 0;
     const isOneOnOne = remoteParticipants.length === 1;
 
-    // Remotes that are NOT currently featured on the main stage
+    // Remotes that are NOT currently featured on the main stage and NOT the local user
     const otherRemotes = remoteParticipants.filter(
-        (p) => pinnedSocketId === "local" || p.socketId !== activeRemote?.socketId
+        (p) =>
+            p.socketId !== socketRef.current?.id &&
+            p.name.trim().toLowerCase() !== (participantName || "").trim().toLowerCase() &&
+            (pinnedSocketId === "local" || p.socketId !== activeRemote?.socketId)
     );
 
     return (
@@ -1399,8 +1429,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                     <div className="flex flex-col items-center gap-7">
                         {/* Purple Atom / Sparkle Logo Icon */}
                         <div
-                            onClick={() => router.push("/dashboard")}
-                            title="VLSI Labs Dashboard"
+                            onClick={() => confirmNavTo("/dashboard")}
+                            title="VLSI Labs Dashboard (Exit confirmation)"
                             className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-tr from-[#7c3aed] to-[#9333ea] shadow-lg shadow-purple-600/35 transition hover:scale-105 active:scale-95"
                         >
                             <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1414,7 +1444,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             {/* Dashboard Grid */}
                             <button
                                 type="button"
-                                onClick={() => router.push("/dashboard")}
+                                onClick={() => confirmNavTo("/dashboard")}
                                 className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
                                 title="Workspace Dashboard"
                             >
@@ -1478,7 +1508,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             {/* Settings */}
                             <button
                                 type="button"
-                                onClick={() => router.push("/dashboard/settings")}
+                                onClick={() => confirmNavTo("/dashboard/settings")}
                                 className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
                                 title="Settings"
                             >
@@ -1628,14 +1658,53 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             
                             {/* MAIN SPOTLIGHT VIDEO STAGE (Takes ~65% height, 16:9 ratio) */}
                             <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] sm:rounded-[26px] md:rounded-[30px] border border-white/10 bg-[#161822] shadow-2xl">
-                                {isSolo ? (
+                                {isScreenSharing && !pinnedSocketId ? (
+                                    /* Google Meet Presenter Card (Eliminates Recursive Screen Tunnel) */
+                                    <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#181a28] via-[#13141f] to-[#0f1017]">
+                                        <div className="relative mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-purple-600/20 border border-purple-500/40 text-purple-400 shadow-2xl shadow-purple-900/40 animate-pulse">
+                                            <svg className="h-10 w-10 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                                            You're presenting to everyone
+                                        </h3>
+                                        <p className="mt-2 max-w-md text-xs sm:text-sm text-slate-400 leading-relaxed">
+                                            Your screen is broadcasting live with all attendees. Switch to your CAD software, EDA diagrams, or slides to present.
+                                        </p>
+
+                                        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={stopScreenSharing}
+                                                className="flex items-center gap-2 rounded-2xl bg-red-600 hover:bg-red-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-red-600/30 transition hover:scale-105 active:scale-95"
+                                            >
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                <span>Stop presenting</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={togglePiP}
+                                                className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 shadow-md transition hover:scale-105 active:scale-95"
+                                            >
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                </svg>
+                                                <span>Minimize to PiP</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : isSolo ? (
                                     <VideoTile
                                         ref={mainVideoRef}
                                         stream={localPreviewStream}
                                         name={`${participantName || "You"} (Host)`}
                                         muted
                                         micEnabled={micEnabled}
-                                        isScreen={isScreenSharing}
+                                        isScreen={false}
                                         isMainSpeaker
                                     />
                                 ) : activeRemote?.screenSharing ? (
@@ -1656,7 +1725,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         name={`${participantName || "You"} (Pinned)`}
                                         muted
                                         micEnabled={micEnabled}
-                                        isScreen={isScreenSharing}
+                                        isScreen={false}
                                         isPinned
                                         onPin={() => setPinnedSocketId(null)}
                                         isMainSpeaker
@@ -1668,7 +1737,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         name={activeRemote ? activeRemote.name : `${participantName || "You"}`}
                                         muted={!activeRemote}
                                         micEnabled={activeRemote ? activeRemote.cameraEnabled !== false : micEnabled}
-                                        isScreen={activeRemote ? activeRemote.screenSharing : isScreenSharing}
+                                        isScreen={activeRemote ? activeRemote.screenSharing : false}
                                         isPinned={Boolean(pinnedSocketId)}
                                         onPin={() =>
                                             setPinnedSocketId(
@@ -1679,6 +1748,23 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         }
                                         isMainSpeaker
                                     />
+                                )}
+
+                                {/* Floating Mobile Self-View PiP Thumbnail (Google Meet mobile style) */}
+                                {!isSolo && (
+                                    <div
+                                        onClick={() => setPinnedSocketId((prev) => (prev === "local" ? null : "local"))}
+                                        className="md:hidden absolute bottom-4 right-4 z-30 h-28 w-20 sm:h-36 sm:w-24 overflow-hidden rounded-2xl border-2 border-purple-500/60 bg-[#151724] shadow-2xl cursor-pointer"
+                                        title="Your camera view"
+                                    >
+                                        <VideoTile
+                                            stream={localStreamRef.current || localPreviewStream}
+                                            name="You"
+                                            muted
+                                            micEnabled={micEnabled}
+                                            isScreen={false}
+                                        />
+                                    </div>
                                 )}
 
                                 {/* Real-Time Live Speech Recognition (Captions) Subtitle Banner */}
@@ -1697,9 +1783,9 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 )}
                             </div>
 
-                            {/* BOTTOM ROW OF 3 ATTENDEE VIDEO TILES (Exact Dribbble Reference) */}
-                            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 h-24 sm:h-32 md:h-36 shrink-0">
-                                {/* Tile 1: "You" (always on bottom left, with frosted You pill) */}
+                            {/* BOTTOM ROW OF ATTENDEE VIDEO TILES (Desktop or Multi-participant) */}
+                            <div className={`${isSolo || isOneOnOne ? "hidden md:grid" : "grid"} grid-cols-3 gap-2.5 sm:gap-3.5 h-24 sm:h-32 md:h-36 shrink-0`}>
+                                {/* Tile 1: "You" (always camera feed, never screen share mirror) */}
                                 <div
                                     onClick={() => setPinnedSocketId("local")}
                                     className={`relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] sm:rounded-[22px] border transition-all ${
@@ -1709,11 +1795,11 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                     }`}
                                 >
                                     <VideoTile
-                                        stream={localPreviewStream}
+                                        stream={localStreamRef.current || localPreviewStream}
                                         name="You"
                                         muted
                                         micEnabled={micEnabled}
-                                        isScreen={isScreenSharing}
+                                        isScreen={false}
                                     />
                                 </div>
 
@@ -2055,6 +2141,315 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 Close Calendar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MOBILE SLIDING BOTTOM DRAWER (Chat / Participants / Meeting Notes) */}
+            {isRightPanelOpen && (
+                <div className="fixed inset-0 z-50 flex md:hidden flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="relative flex max-h-[85vh] h-[85vh] w-full flex-col rounded-t-[32px] border-t border-white/15 bg-[#141622] p-4 shadow-2xl overflow-hidden">
+                        {/* Drawer Handle */}
+                        <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-white/20" />
+
+                        {/* Mobile Drawer Header with Tab Buttons */}
+                        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                            <div className="flex items-center gap-1.5 overflow-x-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveRightTab("chat")}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                                        activeRightTab === "chat"
+                                            ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                            : "text-slate-400 bg-white/5 hover:text-white"
+                                    }`}
+                                >
+                                    Chat {chatMessages.length > 0 && `(${chatMessages.length})`}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveRightTab("participants")}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                                        activeRightTab === "participants"
+                                            ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                            : "text-slate-400 bg-white/5 hover:text-white"
+                                    }`}
+                                >
+                                    People ({1 + remoteParticipants.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveRightTab("notes")}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                                        activeRightTab === "notes"
+                                            ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                            : "text-slate-400 bg-white/5 hover:text-white"
+                                    }`}
+                                >
+                                    Notes
+                                </button>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsRightPanelOpen(false)}
+                                className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-slate-300 hover:text-white"
+                                title="Close drawer"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* MOBILE TAB 1: CHAT */}
+                        {activeRightTab === "chat" && (
+                            <div className="flex flex-1 min-h-0 flex-col justify-between pt-3">
+                                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                                    {chatMessages.length === 0 ? (
+                                        <div className="flex h-full flex-col items-center justify-center p-4 text-center text-slate-400">
+                                            <span className="text-3xl mb-2">💬</span>
+                                            <p className="text-xs font-medium">No messages yet.</p>
+                                            <p className="mt-1 text-[11px] text-slate-500">
+                                                Send a message to everyone in the room.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        chatMessages.map((msg) => (
+                                            <div
+                                                key={msg.id}
+                                                className={`flex items-start gap-2 ${
+                                                    msg.isSelf ? "flex-row-reverse" : "flex-row"
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white ${
+                                                        msg.isSelf ? "bg-[#7c3aed]" : "bg-slate-700"
+                                                    }`}
+                                                >
+                                                    {msg.senderName.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"}`}>
+                                                    <span className="text-[10px] font-medium text-slate-400 mb-0.5">
+                                                        {msg.senderName}
+                                                    </span>
+                                                    <div
+                                                        className={`rounded-2xl px-3 py-2 text-xs leading-relaxed max-w-[240px] break-words shadow-md ${
+                                                            msg.isSelf
+                                                                ? "bg-[#583bbd] text-white rounded-tr-sm"
+                                                                : "bg-[#252834] text-slate-100 rounded-tl-sm border border-white/5"
+                                                        }`}
+                                                    >
+                                                        {msg.text}
+                                                    </div>
+                                                    <span className="mt-0.5 text-[9px] text-slate-500">
+                                                        {msg.time}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                <form
+                                    onSubmit={sendChatMessage}
+                                    className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-[#1b1d28] p-1.5 shadow-lg"
+                                >
+                                    <input
+                                        type="text"
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        placeholder="Type message..."
+                                        className="flex-1 bg-transparent px-3 text-xs text-white placeholder-slate-400 focus:outline-none"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!chatInput.trim()}
+                                        className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#7c3aed] text-white shadow-md shadow-purple-600/30 disabled:opacity-40 transition"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* MOBILE TAB 2: PARTICIPANTS */}
+                        {activeRightTab === "participants" && (
+                            <div className="flex-1 overflow-y-auto pt-3 space-y-2.5">
+                                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7c3aed] font-bold text-xs text-white">
+                                            {participantName ? participantName.charAt(0).toUpperCase() : "Y"}
+                                        </div>
+                                        <div>
+                                            <span className="text-xs font-semibold text-white block">
+                                                {participantName || "You"} (Host)
+                                            </span>
+                                            <span className="text-[10px] text-purple-400">Active</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs">
+                                        <span>{cameraEnabled ? "📹" : "🚫"}</span>
+                                        <span>{micEnabled ? "🎤" : "🔇"}</span>
+                                    </div>
+                                </div>
+
+                                {remoteParticipants.map((p) => (
+                                    <div
+                                        key={p.socketId}
+                                        className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 font-bold text-xs text-white">
+                                                {p.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <span className="text-xs font-semibold text-slate-200 block truncate max-w-[140px]">
+                                                    {p.name}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">Attendee</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                            <span>{p.cameraEnabled ? "📹" : "🚫"}</span>
+                                            <span>🎤</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* MOBILE TAB 3: NOTES */}
+                        {activeRightTab === "notes" && (
+                            <div className="flex flex-1 min-h-0 flex-col justify-between pt-3">
+                                <div className="flex-1 flex flex-col">
+                                    <div className="flex items-center justify-between pb-2">
+                                        <span className="text-[11px] font-semibold text-slate-400">
+                                            Notes auto-save locally
+                                        </span>
+                                        <span className="text-[10px] text-emerald-400 font-medium">● Saved</span>
+                                    </div>
+                                    <textarea
+                                        value={notesText}
+                                        onChange={(e) => handleNotesChange(e.target.value)}
+                                        placeholder="Write key meeting takeaways, action items, design notes..."
+                                        className="flex-1 w-full rounded-2xl border border-white/10 bg-[#161822] p-3 text-xs text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none resize-none leading-relaxed"
+                                    />
+                                </div>
+                                <div className="pt-3">
+                                    <button
+                                        type="button"
+                                        onClick={downloadNotes}
+                                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/30"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        <span>Export Notes (.txt)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* EXIT CONFIRMATION MODAL */}
+            {showExitModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in">
+                    <div className="w-full max-w-md rounded-[28px] border border-white/15 bg-[#161824]/98 p-6 shadow-2xl backdrop-blur-2xl">
+                        <div className="flex items-center gap-3 pb-4 border-b border-white/10">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400">
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-white">Leave Active Meeting?</h3>
+                                <p className="text-[11px] text-slate-400">You are currently connected to room {meetingId}</p>
+                            </div>
+                        </div>
+
+                        <p className="py-4 text-xs text-slate-300 leading-relaxed">
+                            Leaving will disconnect your video and audio stream. If you need to check panels or the dashboard, you can open it in a new tab to keep your call active!
+                        </p>
+
+                        <div className="space-y-2.5">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    window.open(pendingExitUrl, "_blank");
+                                    setShowExitModal(false);
+                                }}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-purple-600 hover:bg-purple-700 py-3 text-xs font-bold text-white shadow-lg shadow-purple-600/30 transition hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                <span>Open Dashboard in New Tab (Keeps Call Active)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowExitModal(false)}
+                                className="flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 py-2.5 text-xs font-semibold text-slate-200 transition"
+                            >
+                                Stay in Meeting
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowExitModal(false);
+                                    leaveMeeting();
+                                }}
+                                className="flex w-full items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 py-2.5 text-xs font-semibold text-red-400 transition"
+                            >
+                                Leave Meeting & Go to Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MOBILE SCREEN SHARING NOTICE MODAL */}
+            {mobileScreenShareNotice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in">
+                    <div className="w-full max-w-md rounded-[28px] border border-white/15 bg-[#161824]/98 p-6 shadow-2xl backdrop-blur-2xl">
+                        <div className="flex items-center gap-3 pb-4 border-b border-white/10">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-400">
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-white">Screen Sharing Notice</h3>
+                                <p className="text-[11px] text-slate-400">Mobile browser capability limitation</p>
+                            </div>
+                        </div>
+
+                        <div className="py-4 space-y-3 text-xs text-slate-300 leading-relaxed">
+                            <p>
+                                Mobile operating systems (Android & iOS) do not allow browser apps to capture and broadcast the mobile screen directly for security reasons.
+                            </p>
+                            <div className="rounded-2xl border border-purple-500/30 bg-purple-950/30 p-3.5 text-purple-200">
+                                <p className="font-semibold mb-1 text-xs">💡 To present your screen:</p>
+                                <p className="text-[11px] text-purple-300 leading-relaxed">
+                                    Join this meeting from a Laptop or Desktop browser to present VLSI EDA schematics, CAD layouts, waveforms, or slides in full HD.
+                                </p>
+                            </div>
+                            <p className="text-slate-400 text-[11px]">
+                                ✨ You can still view any screen shares from other attendees in full HD on this mobile phone!
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setMobileScreenShareNotice(false)}
+                            className="w-full rounded-2xl bg-[#7c3aed] hover:bg-[#6d28d9] py-3 text-xs font-bold text-white shadow-lg shadow-purple-600/30 transition"
+                        >
+                            Understood
+                        </button>
                     </div>
                 </div>
             )}

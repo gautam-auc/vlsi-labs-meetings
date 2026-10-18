@@ -45,7 +45,7 @@ export default function Navbar() {
                         </p>
                     </div>
 
-                    <div className="hidden dark:flex items-center gap-2">
+                    <div className="hidden sm:dark:flex items-center gap-2">
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             Online
@@ -78,7 +78,7 @@ export default function Navbar() {
                 </nav>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <ThemeToggle />
 
                     {/* Instant Meeting Action */}
@@ -96,7 +96,7 @@ export default function Navbar() {
                     {/* Prominent Admin Login Button */}
                     <Link
                         href="/login"
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:-translate-y-0.5"
+                        className="inline-flex items-center gap-1 sm:gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 px-2.5 sm:px-4 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:-translate-y-0.5 whitespace-nowrap"
                     >
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />

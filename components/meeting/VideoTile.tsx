@@ -107,7 +107,11 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
         };
     }, [stream, isScreen]);
 
+    const [objectFitMode, setObjectFitMode] = useState<"cover" | "contain">("cover");
+
     const isVideoVisible = isScreen || hasLiveVideo || (stream && stream.getVideoTracks().length > 0);
+
+    const activeFitClass = isScreen ? "object-contain bg-black" : objectFitMode === "cover" ? "object-cover object-center" : "object-contain object-center bg-[#0d0e14]";
 
     return (
         <div
@@ -127,11 +131,7 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
                 autoPlay
                 playsInline
                 muted // Video element is always muted locally to avoid echo feedback; audio is handled by RemoteAudioSink
-                className={`h-full w-full ${
-                    isScreen
-                        ? "object-contain bg-black"
-                        : "object-cover"
-                } ${isVideoVisible ? "block" : "hidden"} ${muted && !isScreen ? "scale-x-[-1]" : ""}`}
+                className={`h-full w-full ${activeFitClass} ${isVideoVisible ? "block" : "hidden"} ${muted && !isScreen ? "scale-x-[-1]" : ""}`}
             />
 
             {/* Fallback Camera Off Avatar */}
@@ -159,8 +159,31 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
                 </div>
             </div>
 
-            {/* TOP-RIGHT: Pin Button & Mic Badge (Matching Dribbble Meetyu) */}
-            <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            {/* TOP-RIGHT: Fit/Fill Toggle, Pin Button & Mic Badge (Matching Dribbble Meetyu) */}
+            <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 sm:gap-2">
+                {/* Fit / Fill Aspect Ratio Toggle Button (Camera only) */}
+                {!isScreen && isVideoVisible && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setObjectFitMode((prev) => (prev === "cover" ? "contain" : "cover"));
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-xl bg-black/45 backdrop-blur-md text-slate-300 hover:text-white hover:bg-black/70 border border-white/10 shadow-md transition"
+                        title={objectFitMode === "cover" ? "Switch to Fit (Show entire wide camera angle)" : "Switch to Fill (Full screen view)"}
+                    >
+                        {objectFitMode === "cover" ? (
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
+                        ) : (
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4" />
+                            </svg>
+                        )}
+                    </button>
+                )}
+
                 {/* Pin Button */}
                 {onPin && (
                     <button
