@@ -16,8 +16,8 @@ export function isUserAdmin(
     email?: string | null,
     role?: string | null
 ): boolean {
-    if (role === "admin") return true;
     if (!email) return false;
     const normalized = email.toLowerCase().trim();
+    // Strict whitelist: Only verified platform admin emails can EVER see or access the admin center
     return getAdminEmails().includes(normalized);
 }

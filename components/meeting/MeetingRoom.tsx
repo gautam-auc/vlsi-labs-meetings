@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
-import VideoTile from "./VideoTile";
+import VideoTile, { VideoTileRef } from "./VideoTile";
 import MeetingControls from "./MeetingControls";
+import { soundEngine } from "@/lib/sounds";
+import { captionsEngine, CaptionEvent } from "@/lib/speechRecognition";
 
 type RemoteParticipant = {
     socketId: string;
@@ -39,6 +41,12 @@ type MediaStateMessage =
     | {
           type: "reaction";
           emoji: string;
+          left?: number;
+      }
+    | {
+          type: "caption";
+          speakerName: string;
+          text: string;
       };
 
 const SOCKET_URL =
@@ -128,9 +136,22 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
     const [pinnedSocketId, setPinnedSocketId] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(false);
-    const [mobileTab, setMobileTab] = useState<"chat" | "participants">("chat");
-    const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+    const [mobileTab, setMobileTab] = useState<"chat" | "participants" | "notes">("chat");
+    const [activeRightTab, setActiveRightTab] = useState<"chat" | "participants" | "notes">("chat");
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
     const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+
+    // Live Captions & Speech Recognition State
+    const [isCaptionsEnabled, setIsCaptionsEnabled] = useState(false);
+    const [activeCaption, setActiveCaption] = useState<{ speakerName: string; text: string } | null>(null);
+    const captionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // In-Meeting Notepad & Running Calendar State
+    const [notesText, setNotesText] = useState("");
+    const [showCalendarModal, setShowCalendarModal] = useState(false);
+
+    // Video Tile Ref for Native Picture-in-Picture (PiP)
+    const mainVideoRef = useRef<VideoTileRef>(null);
 
     const [chatMessages, setChatMessages] = useState<
         Array<{
@@ -145,6 +166,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [copiedUrl, setCopiedUrl] = useState(false);
     const [reactions, setReactions] = useState<Array<{ id: string; emoji: string }>>([]);
+    const [flyingReactions, setFlyingReactions] = useState<Array<{ id: string; emoji: string; left: number }>>([]);
 
     // Mobile chat input ref for stable focus preservation
     const mobileChatInputRef = useRef<HTMLInputElement | null>(null);
@@ -212,16 +234,17 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     }, [isScreenSharing]);
 
     /* =========================================================
-       REACTIONS
+       REACTIONS WITH FLYING ANIMATION
     ========================================================= */
     const sendReaction = (emoji: string) => {
         const id = `${Date.now()}-${Math.random()}`;
-        setReactions((prev) => [...prev, { id, emoji }]);
+        const left = Math.floor(Math.random() * 60) + 20;
+        setFlyingReactions((prev) => [...prev, { id, emoji, left }]);
         setTimeout(() => {
-            setReactions((prev) => prev.filter((r) => r.id !== id));
+            setFlyingReactions((prev) => prev.filter((r) => r.id !== id));
         }, 3000);
 
-        const payload = JSON.stringify({ type: "reaction", emoji });
+        const payload = JSON.stringify({ type: "reaction", emoji, left });
         Object.values(dataChannelsRef.current).forEach((channel) => {
             if (channel.readyState === "open") {
                 try {
@@ -272,6 +295,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
        REMOVE REMOTE PARTICIPANT
     ========================================================= */
     const removeParticipant = useCallback((socketId: string) => {
+        soundEngine.playLeaveSound();
         const connection = peerConnectionsRef.current[socketId];
         if (connection) {
             connection.close();
@@ -366,8 +390,12 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         senderName: string;
         text: string;
         time?: string;
+        isSelf?: boolean;
     }) => {
         const msgId = data.id || `${data.senderName}-${data.text}-${Date.now()}`;
+        if (!data.isSelf) {
+            soundEngine.playMessageSound();
+        }
         setChatMessages((prev) => {
             if (prev.some((m) => m.id === msgId)) return prev;
             return [
@@ -382,7 +410,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             hour: "2-digit",
                             minute: "2-digit",
                         }),
-                    isSelf: false,
+                    isSelf: Boolean(data.isSelf),
                 },
             ];
         });
@@ -398,15 +426,25 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                     senderName: message.senderName,
                     text: message.text,
                     time: message.time,
+                    isSelf: false,
                 });
                 return;
             }
             if (message.type === "reaction") {
                 const id = `${Date.now()}-${Math.random()}`;
-                setReactions((prev) => [...prev, { id, emoji: message.emoji }]);
+                const left = message.left ?? (Math.floor(Math.random() * 60) + 20);
+                setFlyingReactions((prev) => [...prev, { id, emoji: message.emoji, left }]);
                 setTimeout(() => {
-                    setReactions((prev) => prev.filter((r) => r.id !== id));
+                    setFlyingReactions((prev) => prev.filter((r) => r.id !== id));
                 }, 3000);
+                return;
+            }
+            if (message.type === "caption") {
+                setActiveCaption({ speakerName: message.speakerName, text: message.text });
+                if (captionTimeoutRef.current) clearTimeout(captionTimeoutRef.current);
+                captionTimeoutRef.current = setTimeout(() => {
+                    setActiveCaption(null);
+                }, 4000);
                 return;
             }
             if (message.type === "media-state") {
@@ -598,6 +636,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
     const handleUserJoined = (data: { socketId: string; participantName: string }) => {
         if (!data.socketId || data.socketId === socketRef.current?.id) return;
+        soundEngine.playJoinSound();
         addRemoteParticipant(data.socketId, data.participantName);
         createPeerConnection(data.socketId, data.participantName, false);
         sendMediaState();
@@ -790,6 +829,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                     })
                     .catch(() => {});
 
+                soundEngine.playJoinSound();
                 setJoined(true);
                 setJoining(false);
             });
@@ -1132,6 +1172,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     };
 
     const leaveMeeting = () => {
+        soundEngine.playLeaveSound();
+        captionsEngine.stop();
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((track) => track.stop());
         }
@@ -1145,13 +1187,73 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         router.push("/dashboard");
     };
 
+    const toggleCaptions = () => {
+        if (isCaptionsEnabled) {
+            captionsEngine.stop();
+            setIsCaptionsEnabled(false);
+            setActiveCaption(null);
+        } else {
+            const started = captionsEngine.start(participantName || "You", (caption: CaptionEvent) => {
+                setActiveCaption({ speakerName: caption.speakerName, text: caption.text });
+                const payload = JSON.stringify({
+                    type: "caption",
+                    speakerName: caption.speakerName,
+                    text: caption.text,
+                });
+                Object.values(dataChannelsRef.current).forEach((dc) => {
+                    if (dc.readyState === "open") {
+                        try { dc.send(payload); } catch {}
+                    }
+                });
+                if (captionTimeoutRef.current) clearTimeout(captionTimeoutRef.current);
+                captionTimeoutRef.current = setTimeout(() => {
+                    setActiveCaption(null);
+                }, 4000);
+            });
+            setIsCaptionsEnabled(started);
+        }
+    };
+
+    const togglePiP = async () => {
+        try {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            } else {
+                await mainVideoRef.current?.requestPiP();
+            }
+        } catch (err) {
+            console.warn("PiP error:", err);
+        }
+    };
+
+    const handleNotesChange = (text: string) => {
+        setNotesText(text);
+        if (typeof window !== "undefined") {
+            localStorage.setItem(`meeting_notes_${meetingId}`, text);
+        }
+    };
+
+    const downloadNotes = () => {
+        const content = `VLSI Labs Meeting Notes\nMeeting ID: ${meetingId}\nDate: ${new Date().toLocaleDateString()}\nParticipant: ${participantName || "Host"}\n\n========================================\n\n${notesText || "No notes taken during this session."}`;
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `VLSI-Labs-Meeting-${meetingId}-Notes.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     useEffect(() => {
         const savedName = localStorage.getItem("vlsilabs_user_name");
         if (savedName) setParticipantName(savedName);
-    }, []);
+        const savedNotes = localStorage.getItem(`meeting_notes_${meetingId}`);
+        if (savedNotes) setNotesText(savedNotes);
+    }, [meetingId]);
 
     useEffect(() => {
         return () => {
+            captionsEngine.stop();
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach((track) => track.stop());
             }
@@ -1250,9 +1352,35 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     );
 
     return (
-        <main className="relative flex h-[100dvh] min-h-0 w-full overflow-hidden bg-[#181a20] text-white select-none">
-            {/* Ambient Background Gradient matching Image 2 */}
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(60,40,30,0.35),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(20,30,45,0.45),transparent_60%)]" />
+        <main className="relative flex h-[100dvh] min-h-0 w-full items-center justify-center overflow-hidden bg-[#0a0c12] p-0 md:p-4 lg:p-6 text-white select-none">
+            {/* Ambient Room / Office Backdrop Gradient matching Dribbble Reference */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(90,45,140,0.3),transparent_45%),radial-gradient(circle_at_85%_75%,rgba(35,50,90,0.35),transparent_55%),linear-gradient(to_bottom,rgba(10,12,18,0.92),rgba(14,16,24,0.97))]" />
+            <div className="pointer-events-none absolute -left-20 top-20 h-80 w-80 rounded-full bg-purple-600/10 blur-[100px]" />
+            <div className="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-blue-600/10 blur-[100px]" />
+
+            {/* Custom CSS for Flying Emoji Reactions */}
+            <style jsx>{`
+                @keyframes floatUp {
+                    0% { transform: translateY(0) scale(0.6); opacity: 0; }
+                    20% { opacity: 1; transform: translateY(-40px) scale(1.2); }
+                    80% { opacity: 0.9; }
+                    100% { transform: translateY(-340px) scale(1); opacity: 0; }
+                }
+                .animate-float-up {
+                    animation: floatUp 2.8s ease-out forwards;
+                }
+            `}</style>
+
+            {/* Flying Animated Reactions Overlay */}
+            {flyingReactions.map((r) => (
+                <div
+                    key={r.id}
+                    style={{ left: `${r.left}%` }}
+                    className="pointer-events-none fixed bottom-24 z-50 text-4xl sm:text-5xl animate-float-up"
+                >
+                    {r.emoji}
+                </div>
+            ))}
 
             {/* PERSISTENT AUDIO PLAYERS WITH ECHO GUARD */}
             {remoteParticipants.map((p) => (
@@ -1263,230 +1391,322 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 />
             ))}
 
-            {/* LEFT VERTICAL NAVIGATION DOCK (Hidden on mobile, matching Image 2) */}
-            <aside className="relative z-20 hidden md:flex w-16 shrink-0 flex-col items-center justify-between border-r border-white/5 bg-[#1a1c24]/90 p-3 backdrop-blur-xl">
-                <div className="flex flex-col items-center gap-6">
-                    {/* Logo Icon */}
-                    <a
-                        href="/dashboard"
-                        title="VLSI Labs Dashboard"
-                        className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 hover:bg-white/15 transition p-1"
-                    >
-                        <img
-                            src="/logo.png"
-                            alt="Logo"
-                            className="h-7 w-auto object-contain"
-                        />
-                    </a>
-
-                    {/* Navigation Icons matching Image 2 */}
-                    <div className="flex flex-col items-center gap-4">
-                        <button
-                            type="button"
+            {/* FLOATING MEETYU DASHBOARD CONSOLE (Exact Dribbble Reference) */}
+            <div className="relative z-10 flex h-full max-h-[960px] w-full max-w-[1580px] overflow-hidden rounded-none md:rounded-[36px] lg:rounded-[44px] border-0 md:border border-white/10 bg-[#14151e]/95 shadow-[0_35px_100px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+                
+                {/* LEFT SLIM VERTICAL NAVIGATION DOCK */}
+                <aside className="relative z-20 hidden md:flex w-16 lg:w-20 shrink-0 flex-col items-center justify-between border-r border-white/5 bg-[#101118]/90 py-6 px-2 backdrop-blur-xl">
+                    <div className="flex flex-col items-center gap-7">
+                        {/* Purple Atom / Sparkle Logo Icon */}
+                        <div
                             onClick={() => router.push("/dashboard")}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
-                            title="Workspace Dashboard"
+                            title="VLSI Labs Dashboard"
+                            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl bg-gradient-to-tr from-[#7c3aed] to-[#9333ea] shadow-lg shadow-purple-600/35 transition hover:scale-105 active:scale-95"
                         >
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <circle cx="12" cy="12" r="3" strokeWidth="2.2" />
+                                <path strokeWidth="1.8" strokeLinecap="round" d="M12 3a9 9 0 0 0 9 9M3 12a9 9 0 0 0 9 9M12 21a9 9 0 0 0-9-9M21 12a9 9 0 0 0-9-9" />
                             </svg>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setIsRightPanelOpen((prev) => !prev)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
-                            title="Toggle Messages & Participants"
-                        >
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                        </button>
-
-                        <button
-                            type="button"
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                            title="Active Meeting Call"
-                        >
-                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Exit / Leave Icon */}
-                <button
-                    type="button"
-                    onClick={leaveMeeting}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition"
-                    title="Exit Call"
-                >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                </button>
-            </aside>
-
-            {/* MAIN WORKSPACE BODY */}
-            <div className="relative z-10 flex min-h-0 flex-1 overflow-hidden p-2 sm:p-4 gap-3 lg:gap-4">
-                {/* CENTER STAGE CONTAINER */}
-                <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 sm:gap-3 overflow-hidden">
-                    {/* TOP HEADER BAR (Responsive) */}
-                    <div className="flex shrink-0 items-center justify-between rounded-2xl border border-white/10 bg-[#252834]/80 px-3 sm:px-4 py-2.5 sm:py-3 backdrop-blur-xl shadow-lg">
-                        {/* Desktop Header Left */}
-                        <div className="hidden sm:flex items-center gap-3">
-                            <div className="flex flex-col items-center justify-center h-10 w-10 rounded-xl bg-white text-slate-900 font-bold leading-tight shadow-md">
-                                <span className="text-[9px] font-semibold text-red-600 uppercase">Live</span>
-                                <span className="text-sm">●</span>
-                            </div>
-
-                            <div>
-                                <h2 className="text-sm sm:text-base font-bold text-white tracking-wide">
-                                    VLSI Review & Architecture
-                                </h2>
-                                <p className="text-[11px] text-slate-400">
-                                    Room ID: <span className="font-mono text-blue-400 font-semibold">{meetingId}</span>
-                                </p>
-                            </div>
                         </div>
 
-                        {/* Mobile Header Left */}
-                        <div className="flex sm:hidden items-center gap-2">
-                            <span className="flex h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                            <span className="font-mono text-xs font-bold text-blue-400 truncate max-w-[140px]">
-                                {meetingId}
-                            </span>
-                        </div>
-
-                        {/* Header Right: Live Recording Timer + Flip Camera + Copy Link */}
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-black/40 border border-white/5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-200">
-                                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse hidden xs:inline-block" />
-                                <span className="text-[11px] text-slate-400 hidden sm:inline">Recording Time</span>
-                                <MeetingDurationTimer joined={joined} />
-                            </div>
-
-                            {/* Mobile Quick Camera Flip */}
+                        {/* Navigation Dock Icons matching Dribbble Reference */}
+                        <div className="flex flex-col items-center gap-5">
+                            {/* Dashboard Grid */}
                             <button
                                 type="button"
-                                onClick={flipCamera}
-                                className="flex sm:hidden h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-cyan-300 transition active:scale-90"
-                                title="Flip Camera"
+                                onClick={() => router.push("/dashboard")}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                title="Workspace Dashboard"
                             >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                                 </svg>
                             </button>
 
+                            {/* Chat Messages */}
                             <button
                                 type="button"
-                                onClick={copyMeetingUrl}
-                                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white shadow-md transition"
+                                onClick={() => {
+                                    setActiveRightTab("chat");
+                                    setIsRightPanelOpen(true);
+                                }}
+                                className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${
+                                    isRightPanelOpen && activeRightTab === "chat"
+                                        ? "bg-purple-600/30 text-purple-300"
+                                        : "text-slate-400 hover:bg-white/10 hover:text-white"
+                                }`}
+                                title="Chat Messages"
                             >
-                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
-                                <span className="hidden xs:inline">{copiedUrl ? "Copied!" : "Invite"}</span>
                             </button>
-                        </div>
-                    </div>
 
-                    {/* MAIN ACTIVE PRESENTER / SPEAKER STAGE */}
-                    <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-[#161822] shadow-2xl">
-                        {isSolo ? (
-                            <VideoTile
-                                stream={localPreviewStream}
-                                name={`${participantName} (You · Host)`}
-                                muted
-                                micEnabled={micEnabled}
-                                isScreen={isScreenSharing}
-                            />
-                        ) : activeRemote?.screenSharing ? (
-                            <VideoTile
-                                stream={activeRemote.stream}
-                                name={`${activeRemote.name} · Screen`}
-                                micEnabled={activeRemote.cameraEnabled !== false}
-                                isScreen
-                                isPinned
-                                onPin={() => setPinnedSocketId(null)}
-                            />
-                        ) : pinnedSocketId === "local" ? (
-                            <VideoTile
-                                stream={localPreviewStream}
-                                name={`${participantName} (You · Pinned)`}
-                                muted
-                                micEnabled={micEnabled}
-                                isScreen={isScreenSharing}
-                                isPinned
-                                onPin={() => setPinnedSocketId(null)}
-                            />
-                        ) : (
-                            <VideoTile
-                                stream={activeRemote ? activeRemote.stream : localPreviewStream}
-                                name={activeRemote ? activeRemote.name : `${participantName} (You)`}
-                                muted={!activeRemote}
-                                micEnabled={activeRemote ? activeRemote.cameraEnabled !== false : micEnabled}
-                                isScreen={activeRemote ? activeRemote.screenSharing : isScreenSharing}
-                                isPinned={Boolean(pinnedSocketId)}
-                                onPin={() =>
-                                    setPinnedSocketId(
-                                        activeRemote?.socketId === pinnedSocketId
-                                            ? null
-                                            : activeRemote?.socketId || null
-                                    )
-                                }
-                            />
-                        )}
-
-                        {/* Mobile Picture-in-Picture (PiP) Window for 1-on-1 calls */}
-                        {isMobile && isOneOnOne && (
+                            {/* Active Video Camera Icon in Pill */}
                             <div
-                                onClick={() =>
-                                    setPinnedSocketId(pinnedSocketId === "local" ? null : "local")
-                                }
-                                className="absolute bottom-4 right-3 z-30 h-36 w-24 sm:h-44 sm:w-32 cursor-pointer overflow-hidden rounded-2xl border-2 border-white/25 bg-black/70 shadow-2xl transition active:scale-95"
-                                title="Tap to switch view"
+                                className="flex h-11 w-6 items-center justify-center rounded-full bg-white text-slate-900 shadow-md shadow-white/20"
+                                title="Meeting Active"
                             >
-                                <VideoTile
-                                    stream={
-                                        pinnedSocketId === "local"
-                                            ? activeRemote?.stream || null
-                                            : localPreviewStream
-                                    }
-                                    name={
-                                        pinnedSocketId === "local"
-                                            ? activeRemote?.name || "Participant"
-                                            : "You"
-                                    }
-                                    muted={pinnedSocketId !== "local"}
-                                    micEnabled={
-                                        pinnedSocketId === "local"
-                                            ? activeRemote?.cameraEnabled !== false
-                                            : micEnabled
-                                    }
-                                    isScreen={
-                                        pinnedSocketId === "local"
-                                            ? activeRemote?.screenSharing
-                                            : isScreenSharing
-                                    }
-                                />
-                                <div className="absolute bottom-1 right-1 rounded-md bg-black/60 px-1 py-0.5 text-[8px] font-semibold text-white">
-                                    Swap
+                                <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
+                                    <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+
+                            {/* Clock / History */}
+                            <button
+                                type="button"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                title="Session Clock"
+                            >
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </button>
+
+                            {/* Running Calendar Icon */}
+                            <button
+                                type="button"
+                                onClick={() => setShowCalendarModal(true)}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                title="Running Calendar Schedule"
+                            >
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+
+                            {/* Settings */}
+                            <button
+                                type="button"
+                                onClick={() => router.push("/dashboard/settings")}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                title="Settings"
+                            >
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* User Profile Avatar at Bottom */}
+                    <div
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-purple-500/40 bg-gradient-to-tr from-[#6366f1] to-[#8b5cf6] font-bold text-xs text-white shadow-md shadow-purple-900/30"
+                        title={participantName || "User"}
+                    >
+                        {participantName ? participantName.charAt(0).toUpperCase() : "U"}
+                    </div>
+                </aside>
+
+                {/* MAIN STAGE + RIGHT SIDEBAR BODY */}
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                    
+                    {/* CENTER STAGE CONTAINER */}
+                    <div className="flex min-h-0 flex-1 flex-col justify-between p-3 sm:p-5 md:p-6 overflow-hidden">
+                        
+                        {/* TOP HEADER BAR (Exact Dribbble Reference) */}
+                        <div className="flex shrink-0 items-center justify-between pb-3">
+                            {/* Header Left: Calendar Icon + Title + Date */}
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-2xl bg-white/10 border border-white/10 text-white shadow-md backdrop-blur-md">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-red-400">
+                                        📅
+                                    </span>
+                                    <span className="text-xs font-bold leading-none">
+                                        {new Date().getDate()}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <h1 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                                        Daily Standup Meeting
+                                    </h1>
+                                    <p className="text-[11px] text-slate-400">
+                                        {new Date().toLocaleDateString("en-GB", {
+                                            day: "numeric",
+                                            month: "long",
+                                            year: "numeric",
+                                        })}
+                                        {" · "}
+                                        <span className="font-mono text-purple-400 font-semibold">{meetingId}</span>
+                                    </p>
                                 </div>
                             </div>
-                        )}
-                    </div>
 
-                    {/* PARTICIPANT THUMBNAIL ROW (No Duplication with Stage!) */}
-                    {/* On mobile 1-on-1, PiP is used to leave 100% height for the video */}
-                    {(!isMobile || remoteParticipants.length > 1) && !isSolo && (
-                        <div className="flex h-24 sm:h-32 md:h-36 shrink-0 gap-2.5 sm:gap-3 overflow-x-auto pb-1 scrollbar-thin">
-                            {/* Local User Tile (rendered in row only if NOT pinned on stage) */}
-                            {pinnedSocketId !== "local" && (
+                            {/* Header Right: Time Remaining + Tab Pills */}
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                {/* Time Remaining Badge with live countdown */}
+                                <div className="hidden xs:flex flex-col items-end rounded-2xl bg-white/5 border border-white/10 px-3.5 py-1.5 backdrop-blur-md">
+                                    <span className="text-[10px] text-slate-400 font-medium">Time Remaining</span>
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-white font-mono">
+                                        <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                        <MeetingDurationTimer joined={joined} />
+                                    </div>
+                                </div>
+
+                                {/* Right Side Tab Pills matching Dribbble Reference */}
+                                <div className="flex items-center gap-1.5 rounded-2xl bg-white/5 p-1 border border-white/10">
+                                    {/* Chat Tab Pill */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveRightTab("chat");
+                                            setIsRightPanelOpen((prev) => (activeRightTab === "chat" ? !prev : true));
+                                        }}
+                                        className={`flex h-9 w-9 sm:h-9 sm:w-10 items-center justify-center rounded-xl transition ${
+                                            isRightPanelOpen && activeRightTab === "chat"
+                                                ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                                        }`}
+                                        title="Chat"
+                                    >
+                                        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Participants Tab Pill */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveRightTab("participants");
+                                            setIsRightPanelOpen((prev) => (activeRightTab === "participants" ? !prev : true));
+                                        }}
+                                        className={`flex h-9 w-9 sm:h-9 sm:w-10 items-center justify-center rounded-xl transition ${
+                                            isRightPanelOpen && activeRightTab === "participants"
+                                                ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                                        }`}
+                                        title="Participants"
+                                    >
+                                        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Meeting Notes Tab Pill */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveRightTab("notes");
+                                            setIsRightPanelOpen((prev) => (activeRightTab === "notes" ? !prev : true));
+                                        }}
+                                        className={`flex h-9 w-9 sm:h-9 sm:w-10 items-center justify-center rounded-xl transition ${
+                                            isRightPanelOpen && activeRightTab === "notes"
+                                                ? "bg-[#7c3aed] text-white shadow-md shadow-purple-600/30"
+                                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                                        }`}
+                                        title="Meeting Notes"
+                                    >
+                                        <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Link / Invite Pill */}
+                                    <button
+                                        type="button"
+                                        onClick={copyMeetingUrl}
+                                        className="flex h-9 w-9 sm:h-9 sm:w-10 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition"
+                                        title={copiedUrl ? "Link Copied!" : "Copy Meeting Link"}
+                                    >
+                                        {copiedUrl ? (
+                                            <span className="text-emerald-400 font-bold text-xs">✓</span>
+                                        ) : (
+                                            <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* CENTER VIDEO STAGE (Main Spotlight + Bottom 3 Attendees Row) */}
+                        <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 overflow-hidden">
+                            
+                            {/* MAIN SPOTLIGHT VIDEO STAGE (Takes ~65% height, 16:9 ratio) */}
+                            <div className="relative min-h-0 flex-1 overflow-hidden rounded-[20px] sm:rounded-[26px] md:rounded-[30px] border border-white/10 bg-[#161822] shadow-2xl">
+                                {isSolo ? (
+                                    <VideoTile
+                                        ref={mainVideoRef}
+                                        stream={localPreviewStream}
+                                        name={`${participantName || "You"} (Host)`}
+                                        muted
+                                        micEnabled={micEnabled}
+                                        isScreen={isScreenSharing}
+                                        isMainSpeaker
+                                    />
+                                ) : activeRemote?.screenSharing ? (
+                                    <VideoTile
+                                        ref={mainVideoRef}
+                                        stream={activeRemote.stream}
+                                        name={`${activeRemote.name} · Screen`}
+                                        micEnabled={activeRemote.cameraEnabled !== false}
+                                        isScreen
+                                        isPinned
+                                        onPin={() => setPinnedSocketId(null)}
+                                        isMainSpeaker
+                                    />
+                                ) : pinnedSocketId === "local" ? (
+                                    <VideoTile
+                                        ref={mainVideoRef}
+                                        stream={localPreviewStream}
+                                        name={`${participantName || "You"} (Pinned)`}
+                                        muted
+                                        micEnabled={micEnabled}
+                                        isScreen={isScreenSharing}
+                                        isPinned
+                                        onPin={() => setPinnedSocketId(null)}
+                                        isMainSpeaker
+                                    />
+                                ) : (
+                                    <VideoTile
+                                        ref={mainVideoRef}
+                                        stream={activeRemote ? activeRemote.stream : localPreviewStream}
+                                        name={activeRemote ? activeRemote.name : `${participantName || "You"}`}
+                                        muted={!activeRemote}
+                                        micEnabled={activeRemote ? activeRemote.cameraEnabled !== false : micEnabled}
+                                        isScreen={activeRemote ? activeRemote.screenSharing : isScreenSharing}
+                                        isPinned={Boolean(pinnedSocketId)}
+                                        onPin={() =>
+                                            setPinnedSocketId(
+                                                activeRemote?.socketId === pinnedSocketId
+                                                    ? null
+                                                    : activeRemote?.socketId || null
+                                            )
+                                        }
+                                        isMainSpeaker
+                                    />
+                                )}
+
+                                {/* Real-Time Live Speech Recognition (Captions) Subtitle Banner */}
+                                {isCaptionsEnabled && activeCaption && (
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 max-w-[85%] rounded-2xl bg-black/80 px-5 py-2.5 backdrop-blur-md border border-white/10 shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span className="text-xs font-bold text-purple-300">
+                                                {activeCaption.speakerName}:
+                                            </span>
+                                            <span className="text-xs font-medium text-slate-100">
+                                                {activeCaption.text}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* BOTTOM ROW OF 3 ATTENDEE VIDEO TILES (Exact Dribbble Reference) */}
+                            <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 h-24 sm:h-32 md:h-36 shrink-0">
+                                {/* Tile 1: "You" (always on bottom left, with frosted You pill) */}
                                 <div
                                     onClick={() => setPinnedSocketId("local")}
-                                    className="relative h-full w-36 sm:w-44 md:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 transition-all hover:border-blue-500/80"
+                                    className={`relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] sm:rounded-[22px] border transition-all ${
+                                        pinnedSocketId === "local"
+                                            ? "border-purple-500 shadow-lg shadow-purple-600/30"
+                                            : "border-white/10 hover:border-purple-400/60"
+                                    }`}
                                 >
                                     <VideoTile
                                         stream={localPreviewStream}
@@ -1496,344 +1716,348 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         isScreen={isScreenSharing}
                                     />
                                 </div>
-                            )}
 
-                            {/* Remote Participants (Only those not featured on the main stage) */}
-                            {otherRemotes.map((p) => (
+                                {/* Tile 2: Participant 2 (or Second remote attendee) */}
                                 <div
-                                    key={p.socketId}
-                                    onClick={() => setPinnedSocketId(p.socketId)}
-                                    className="relative h-full w-36 sm:w-44 md:w-52 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-white/10 hover:border-blue-500/80 transition-all"
+                                    onClick={() => {
+                                        if (otherRemotes[0]) setPinnedSocketId(otherRemotes[0].socketId);
+                                    }}
+                                    className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] sm:rounded-[22px] border border-white/10 hover:border-purple-400/60 transition-all bg-[#1b1c26]"
                                 >
-                                    <VideoTile
-                                        stream={p.stream}
-                                        name={p.screenSharing ? `${p.name} · Screen` : p.name}
-                                        micEnabled={p.cameraEnabled !== false}
-                                        isScreen={p.screenSharing}
-                                    />
+                                    {otherRemotes[0] ? (
+                                        <VideoTile
+                                            stream={otherRemotes[0].stream}
+                                            name={otherRemotes[0].name}
+                                            micEnabled={otherRemotes[0].cameraEnabled !== false}
+                                            isScreen={otherRemotes[0].screenSharing}
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-[#1e202c] to-[#151722]">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs font-bold">
+                                                P2
+                                            </div>
+                                            <span className="mt-1 text-[11px] font-medium text-slate-400">
+                                                Waiting for attendee
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
-                    )}
 
-                    {/* FLOATING BOTTOM CONTROL BAR (Responsive) */}
-                    <div className="flex shrink-0 items-center justify-center">
-                        <div className="rounded-3xl border border-white/10 bg-[#252834]/90 px-2 sm:px-6 py-2 shadow-2xl backdrop-blur-2xl">
+                                {/* Tile 3: Participant 3 or "+ 12 other participants" matching Dribbble */}
+                                <div
+                                    onClick={() => {
+                                        setActiveRightTab("participants");
+                                        setIsRightPanelOpen(true);
+                                    }}
+                                    className="relative h-full w-full cursor-pointer overflow-hidden rounded-[18px] sm:rounded-[22px] border border-white/10 hover:border-purple-400/60 transition-all bg-[#1b1c26]"
+                                >
+                                    {otherRemotes[1] ? (
+                                        <VideoTile
+                                            stream={otherRemotes[1].stream}
+                                            name={otherRemotes[1].name}
+                                            micEnabled={otherRemotes[1].cameraEnabled !== false}
+                                            isScreen={otherRemotes[1].screenSharing}
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full flex-col items-center justify-center p-2 text-center bg-gradient-to-br from-[#1a1c26] to-[#141520] backdrop-blur-md">
+                                            <div className="flex items-center gap-1.5 rounded-full bg-black/45 border border-white/10 px-3 py-1.5 shadow-md">
+                                                <span className="text-xs">👥</span>
+                                                <span className="text-[11px] font-semibold text-slate-200">
+                                                    {remoteParticipants.length > 2
+                                                        ? `${remoteParticipants.length - 2} other participants`
+                                                        : "Invite participants"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* FLOATING BOTTOM CONTROL DOCK (Exact Meetyu Dribbble Reference) */}
+                        <div className="flex shrink-0 items-center justify-center pt-3 sm:pt-4">
                             <MeetingControls
                                 micEnabled={micEnabled}
                                 cameraEnabled={cameraEnabled}
                                 isScreenSharing={isScreenSharing}
+                                isCaptionsEnabled={isCaptionsEnabled}
                                 isSpeakerMuted={isSpeakerMuted}
                                 onToggleMic={toggleMic}
                                 onToggleCamera={toggleCamera}
                                 onToggleScreen={toggleScreenSharing}
+                                onToggleCaptions={toggleCaptions}
+                                onTogglePiP={togglePiP}
                                 onToggleSpeaker={() => setIsSpeakerMuted((prev) => !prev)}
                                 onLeave={leaveMeeting}
-                                onToggleChat={() => setIsRightPanelOpen((prev) => !prev)}
-                                isChatOpen={isRightPanelOpen}
-                                unreadChatCount={unreadChatCount}
-                                onToggleParticipants={() => {
-                                    setMobileTab("participants");
+                                onSendReaction={sendReaction}
+                                onToggleNotes={() => {
+                                    setActiveRightTab("notes");
                                     setIsRightPanelOpen(true);
                                 }}
-                                participantCount={1 + remoteParticipants.length}
-                                onSendReaction={sendReaction}
-                                onFlipCamera={flipCamera}
+                                onToggleCalendar={() => setShowCalendarModal(true)}
                             />
                         </div>
                     </div>
-                </div>
 
-                {/* RIGHT PANEL FOR DESKTOP (Image 2 style dual cards) */}
-                {isRightPanelOpen && (
-                    <aside className="relative hidden md:flex w-80 lg:w-92 shrink-0 flex-col gap-3 overflow-hidden">
-                        {/* CARD 1 (Top): PARTICIPANT ROSTER */}
-                        <div className="flex max-h-56 shrink-0 flex-col rounded-2xl border border-white/10 bg-[#252834]/80 p-4 shadow-xl backdrop-blur-xl overflow-hidden">
-                            <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                                <h3 className="text-xs font-bold text-white tracking-wide">
-                                    Participant ({1 + remoteParticipants.length})
-                                </h3>
-                                <span className="rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow">
-                                    Show All
-                                </span>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto pt-3 space-y-2.5 scrollbar-thin">
-                                {/* Local User */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 font-bold text-[10px] text-white">
-                                            {participantName ? participantName.charAt(0).toUpperCase() : "Y"}
-                                        </div>
-                                        <span className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">
-                                            {participantName || "You"} (Host)
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                        <span>{cameraEnabled ? "📹" : "🚫"}</span>
-                                        <span>{micEnabled ? "🎤" : "🔇"}</span>
-                                    </div>
+                    {/* RIGHT SLIDING PANEL (Chat / Participants / Meeting Notes) */}
+                    {isRightPanelOpen && (
+                        <aside className="relative hidden md:flex w-80 lg:w-92 shrink-0 flex-col border-l border-white/5 bg-[#12131b]/95 p-4 shadow-2xl backdrop-blur-2xl overflow-hidden justify-between">
+                            
+                            {/* Panel Header */}
+                            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
+                                        {activeRightTab === "chat" && "Meeting Chat"}
+                                        {activeRightTab === "participants" && `Participants (${1 + remoteParticipants.length})`}
+                                        {activeRightTab === "notes" && "In-Meeting Notepad"}
+                                    </span>
                                 </div>
 
-                                {/* Remote Participants */}
-                                {remoteParticipants.map((p) => (
-                                    <div key={p.socketId} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 font-bold text-[10px] text-white">
-                                                {p.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span className="text-xs font-medium text-slate-200 truncate max-w-[120px]">
-                                                {p.name}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                            <span>{p.cameraEnabled ? "📹" : "🚫"}</span>
-                                            <span>🎤</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* CARD 2 (Bottom): MESSAGES LIVE CHAT */}
-                        <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/10 bg-[#252834]/80 p-4 shadow-xl backdrop-blur-xl overflow-hidden">
-                            <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                                <h3 className="text-xs font-bold text-white tracking-wide">
-                                    Messages
-                                </h3>
                                 <button
                                     type="button"
                                     onClick={() => setIsRightPanelOpen(false)}
-                                    className="text-xs text-slate-400 hover:text-white"
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition"
+                                    title="Close panel"
                                 >
                                     ✕
                                 </button>
                             </div>
 
-                            {/* Chat Messages Feed */}
-                            <div className="flex-1 overflow-y-auto py-3 space-y-3 scrollbar-thin">
-                                {chatMessages.length === 0 ? (
-                                    <div className="flex h-full flex-col items-center justify-center text-center p-4 text-slate-400">
-                                        <p className="text-xs">No messages yet.</p>
-                                        <p className="mt-1 text-[10px] text-slate-500">
-                                            Type a message below to chat live.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    chatMessages.map((msg) => (
-                                        <div
-                                            key={msg.id}
-                                            className={`flex items-start gap-2.5 ${
-                                                msg.isSelf ? "flex-row-reverse" : "flex-row"
-                                            }`}
-                                        >
-                                            <div
-                                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white ${
-                                                    msg.isSelf ? "bg-blue-600" : "bg-purple-600"
-                                                }`}
-                                            >
-                                                {msg.senderName.charAt(0).toUpperCase()}
+                            {/* TAB CONTENT 1: CHAT */}
+                            {activeRightTab === "chat" && (
+                                <div className="flex flex-1 min-h-0 flex-col justify-between pt-3">
+                                    {/* Messages Feed */}
+                                    <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 scrollbar-thin">
+                                        {chatMessages.length === 0 ? (
+                                            <div className="flex h-full flex-col items-center justify-center p-4 text-center text-slate-400">
+                                                <span className="text-3xl mb-2">💬</span>
+                                                <p className="text-xs font-medium">No messages yet.</p>
+                                                <p className="mt-1 text-[11px] text-slate-500">
+                                                    Chat with attendees in real-time.
+                                                </p>
                                             </div>
-                                            <div className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"}`}>
+                                        ) : (
+                                            chatMessages.map((msg) => (
                                                 <div
-                                                    className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed max-w-[210px] break-words ${
-                                                        msg.isSelf
-                                                            ? "bg-blue-600 text-white rounded-tr-sm"
-                                                            : "bg-white/10 text-slate-100 rounded-tl-sm border border-white/5"
+                                                    key={msg.id}
+                                                    className={`flex items-start gap-2.5 ${
+                                                        msg.isSelf ? "flex-row-reverse" : "flex-row"
                                                     }`}
                                                 >
-                                                    {msg.text}
+                                                    <div
+                                                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white shadow ${
+                                                            msg.isSelf ? "bg-[#7c3aed]" : "bg-slate-700"
+                                                        }`}
+                                                    >
+                                                        {msg.senderName.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"}`}>
+                                                        <span className="text-[10px] font-medium text-slate-400 mb-0.5">
+                                                            {msg.senderName}
+                                                        </span>
+                                                        <div
+                                                            className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed max-w-[210px] break-words shadow-md ${
+                                                                msg.isSelf
+                                                                    ? "bg-[#583bbd] text-white rounded-tr-sm"
+                                                                    : "bg-[#252834] text-slate-100 rounded-tl-sm border border-white/5"
+                                                            }`}
+                                                        >
+                                                            {msg.text}
+                                                        </div>
+                                                        <span className="mt-0.5 text-[9px] text-slate-500">
+                                                            {msg.time}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <span className="mt-1 text-[9px] text-slate-400">
-                                                    {msg.time}
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* Chat Input Bar matching Dribbble Reference */}
+                                    <form
+                                        onSubmit={sendChatMessage}
+                                        className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-[#1b1d28] p-1.5 shadow-lg"
+                                    >
+                                        <button
+                                            type="button"
+                                            className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white transition"
+                                            title="Attach File"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                            </svg>
+                                        </button>
+
+                                        <input
+                                            type="text"
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            placeholder="Type message...."
+                                            className="flex-1 bg-transparent px-2 text-xs text-white placeholder-slate-400 focus:outline-none"
+                                        />
+
+                                        <button
+                                            type="submit"
+                                            disabled={!chatInput.trim()}
+                                            className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#7c3aed] text-white shadow-md shadow-purple-600/30 hover:bg-[#6d28d9] disabled:opacity-40 transition"
+                                            title="Send message"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* TAB CONTENT 2: PARTICIPANTS */}
+                            {activeRightTab === "participants" && (
+                                <div className="flex-1 overflow-y-auto pt-3 space-y-2.5 scrollbar-thin">
+                                    {/* Local User */}
+                                    <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7c3aed] font-bold text-xs text-white">
+                                                {participantName ? participantName.charAt(0).toUpperCase() : "Y"}
+                                            </div>
+                                            <div>
+                                                <span className="text-xs font-semibold text-white block">
+                                                    {participantName || "You"} (Host)
                                                 </span>
+                                                <span className="text-[10px] text-purple-400">Active Presenter</span>
                                             </div>
                                         </div>
-                                    ))
-                                )}
+                                        <div className="flex items-center gap-1.5 text-xs">
+                                            <span>{cameraEnabled ? "📹" : "🚫"}</span>
+                                            <span>{micEnabled ? "🎤" : "🔇"}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Remote Participants */}
+                                    {remoteParticipants.map((p) => (
+                                        <div
+                                            key={p.socketId}
+                                            className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5 hover:border-purple-500/40 transition"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 font-bold text-xs text-white">
+                                                    {p.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-semibold text-slate-200 block truncate max-w-[120px]">
+                                                        {p.name}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">Attendee</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                                <span>{p.cameraEnabled ? "📹" : "🚫"}</span>
+                                                <span>🎤</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* TAB CONTENT 3: IN-MEETING NOTEPAD */}
+                            {activeRightTab === "notes" && (
+                                <div className="flex flex-1 min-h-0 flex-col justify-between pt-3">
+                                    <div className="flex-1 flex flex-col">
+                                        <div className="flex items-center justify-between pb-2">
+                                            <span className="text-[11px] font-semibold text-slate-400">
+                                                Notes auto-save locally
+                                            </span>
+                                            <span className="text-[10px] text-emerald-400 font-medium">● Saved</span>
+                                        </div>
+                                        <textarea
+                                            value={notesText}
+                                            onChange={(e) => handleNotesChange(e.target.value)}
+                                            placeholder="Write key meeting takeaways, action items, design notes..."
+                                            className="flex-1 w-full rounded-2xl border border-white/10 bg-[#161822] p-3 text-xs text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none leading-relaxed"
+                                        />
+                                    </div>
+
+                                    <div className="pt-3">
+                                        <button
+                                            type="button"
+                                            onClick={downloadNotes}
+                                            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/30 hover:bg-[#6d28d9] transition"
+                                        >
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                            <span>Export Notes (.txt)</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </aside>
+                    )}
+                </div>
+            </div>
+
+            {/* RUNNING CALENDAR SCHEDULE MODAL */}
+            {showCalendarModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md animate-in fade-in">
+                    <div className="w-full max-w-md rounded-[28px] border border-white/15 bg-[#161824]/98 p-6 shadow-2xl backdrop-blur-2xl">
+                        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                            <div className="flex items-center gap-2.5">
+                                <span className="text-xl">📅</span>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white">Running Meeting Calendar</h3>
+                                    <p className="text-[11px] text-slate-400">Watch schedules & live sessions</p>
+                                </div>
                             </div>
-
-                            {/* Bottom Message Input Bar */}
-                            <form
-                                onSubmit={sendChatMessage}
-                                className="flex items-center gap-2 pt-2 border-t border-white/5"
-                            >
-                                <button
-                                    type="button"
-                                    className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
-                                    title="Attach File"
-                                >
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                    </svg>
-                                </button>
-
-                                <input
-                                    type="text"
-                                    value={chatInput}
-                                    onChange={(e) => setChatInput(e.target.value)}
-                                    placeholder="Message..."
-                                    className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-
-                                <button
-                                    type="submit"
-                                    disabled={!chatInput.trim()}
-                                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 transition"
-                                    title="Send Message"
-                                >
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                    </svg>
-                                </button>
-                            </form>
-                        </div>
-                    </aside>
-                )}
-
-                {/* RIGHT PANEL FOR MOBILE (Overlay Bottom Sheet Drawer) */}
-                {isRightPanelOpen && (
-                    <div className="fixed inset-x-0 bottom-0 top-14 z-50 flex md:hidden flex-col rounded-t-3xl border-t border-white/15 bg-[#161822]/98 p-4 shadow-2xl backdrop-blur-2xl">
-                        {/* Drawer Header with Tabs & Close */}
-                        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                            <div className="flex items-center gap-1.5 rounded-xl bg-white/5 p-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setMobileTab("chat")}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                                        mobileTab === "chat"
-                                            ? "bg-blue-600 text-white shadow"
-                                            : "text-slate-400 hover:text-white"
-                                    }`}
-                                >
-                                    Messages {unreadChatCount > 0 && `(${unreadChatCount})`}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setMobileTab("participants")}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                                        mobileTab === "participants"
-                                            ? "bg-blue-600 text-white shadow"
-                                            : "text-slate-400 hover:text-white"
-                                    }`}
-                                >
-                                    Participants ({1 + remoteParticipants.length})
-                                </button>
-                            </div>
-
                             <button
                                 type="button"
-                                onClick={() => setIsRightPanelOpen(false)}
-                                className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-slate-300 hover:text-white"
-                                title="Close"
+                                onClick={() => setShowCalendarModal(false)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-slate-300 hover:text-white"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        {/* Mobile Drawer Content */}
-                        {mobileTab === "chat" ? (
-                            <div className="flex flex-1 min-h-0 flex-col pt-3">
-                                <div className="flex-1 overflow-y-auto space-y-3 pb-2 scrollbar-thin">
-                                    {chatMessages.length === 0 ? (
-                                        <div className="flex h-full flex-col items-center justify-center text-center p-4 text-slate-400">
-                                            <p className="text-xs">No messages yet.</p>
-                                            <p className="mt-1 text-[10px] text-slate-500">Send a message below.</p>
-                                        </div>
-                                    ) : (
-                                        chatMessages.map((msg) => (
-                                            <div
-                                                key={msg.id}
-                                                className={`flex items-start gap-2.5 ${
-                                                    msg.isSelf ? "flex-row-reverse" : "flex-row"
-                                                }`}
-                                            >
-                                                <div
-                                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white ${
-                                                        msg.isSelf ? "bg-blue-600" : "bg-purple-600"
-                                                    }`}
-                                                >
-                                                    {msg.senderName.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"}`}>
-                                                    <div
-                                                        className={`rounded-2xl px-3.5 py-2 text-xs leading-relaxed max-w-[260px] break-words ${
-                                                            msg.isSelf
-                                                                ? "bg-blue-600 text-white rounded-tr-sm"
-                                                                : "bg-white/10 text-slate-100 rounded-tl-sm border border-white/5"
-                                                        }`}
-                                                    >
-                                                        {msg.text}
-                                                    </div>
-                                                    <span className="mt-1 text-[9px] text-slate-400">{msg.time}</span>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
+                        {/* Calendar Mini-Schedule View */}
+                        <div className="py-4 space-y-3">
+                            <div className="rounded-2xl border border-purple-500/40 bg-purple-950/30 p-3.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="rounded-full bg-purple-600 px-2.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                                        Happening Now
+                                    </span>
+                                    <span className="text-xs font-mono font-bold text-purple-300">Live</span>
                                 </div>
-
-                                <form onSubmit={sendChatMessage} className="flex items-center gap-2 pt-2 border-t border-white/10">
-                                    <input
-                                        ref={mobileChatInputRef}
-                                        type="text"
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        placeholder="Type a message..."
-                                        autoComplete="off"
-                                        autoCorrect="off"
-                                        spellCheck="false"
-                                        inputMode="text"
-                                        className="flex-1 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
-                                    />
-                                    <button
-                                        type="submit"
-                                        disabled={!chatInput.trim()}
-                                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white disabled:opacity-40"
-                                    >
-                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                        </svg>
-                                    </button>
-                                </form>
+                                <h4 className="mt-2 text-xs font-bold text-white">Daily Standup & VLSI Review</h4>
+                                <p className="mt-0.5 text-[11px] text-slate-300">Room: {meetingId}</p>
                             </div>
-                        ) : (
-                            <div className="flex-1 overflow-y-auto pt-3 space-y-2.5">
-                                <div className="flex items-center justify-between p-2 rounded-xl bg-white/5">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 font-bold text-xs text-white">
-                                            {participantName ? participantName.charAt(0).toUpperCase() : "Y"}
-                                        </div>
-                                        <span className="text-xs font-semibold text-slate-200">
-                                            {participantName || "You"} (Host)
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                        <span>{cameraEnabled ? "📹" : "🚫"}</span>
-                                        <span>{micEnabled ? "🎤" : "🔇"}</span>
-                                    </div>
-                                </div>
 
-                                {remoteParticipants.map((p) => (
-                                    <div key={p.socketId} className="flex items-center justify-between p-2 rounded-xl bg-white/5">
-                                        <div className="flex items-center gap-2.5">
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 font-bold text-xs text-white">
-                                                {p.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span className="text-xs font-medium text-slate-200">
-                                                {p.name}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                            <span>{p.cameraEnabled ? "📹" : "🚫"}</span>
-                                            <span>🎤</span>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="rounded-2xl border border-white/5 bg-white/5 p-3.5 space-y-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    Today · 11:30 AM
+                                </span>
+                                <h4 className="text-xs font-bold text-white">Physical Design & Timing Closure</h4>
+                                <p className="text-[11px] text-slate-400">Floorplanning, Clock Tree Synthesis, DRC/LVS check</p>
                             </div>
-                        )}
+
+                            <div className="rounded-2xl border border-white/5 bg-white/5 p-3.5 space-y-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    Today · 03:00 PM
+                                </span>
+                                <h4 className="text-xs font-bold text-white">Architecture & Signoff Sync</h4>
+                                <p className="text-[11px] text-slate-400">Multi-corner timing signoff and power analysis</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowCalendarModal(false)}
+                                className="w-full rounded-2xl bg-white/10 hover:bg-white/15 py-2.5 text-xs font-semibold text-white transition"
+                            >
+                                Close Calendar
+                            </button>
+                        </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </main>
     );
 }
