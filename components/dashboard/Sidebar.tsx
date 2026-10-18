@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isUserAdmin } from "../../lib/admin";
 
 interface MenuItem {
     label: string;
@@ -66,8 +67,7 @@ export default function Sidebar() {
         const name = localStorage.getItem("vlsilabs_user_name") || "A. Gautam";
         setUserName(name);
 
-        const adminEmails = ["agautamauc@gmail.com", "agautamrpr@gmail.com"];
-        const adminCheck = adminEmails.includes(email) || role === "admin";
+        const adminCheck = isUserAdmin(email, role);
         setIsAdmin(adminCheck);
         setUserRole(adminCheck ? "Administrator" : "Member");
     }, []);

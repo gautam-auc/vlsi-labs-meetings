@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "../../../components/dashboard/Sidebar";
 import Header from "../../../components/dashboard/Header";
+import { isUserAdmin } from "../../../lib/admin";
 
 interface AdminStats {
   totalMeetings: number;
@@ -75,8 +76,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const email = (localStorage.getItem("vlsilabs_user_email") || "").toLowerCase().trim();
     const role = localStorage.getItem("vlsilabs_user_role") || "";
-    const adminEmails = ["agautamauc@gmail.com", "agautamrpr@gmail.com"];
-    const isAuthorized = adminEmails.includes(email) || role === "admin";
+    const isAuthorized = isUserAdmin(email, role);
     if (!isAuthorized) {
       router.push("/dashboard");
       return;

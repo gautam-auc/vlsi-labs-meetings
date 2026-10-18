@@ -19,17 +19,24 @@ export async function POST(request: Request) {
 
     if (!db) {
       // Graceful local fallback if MongoDB is not connected yet
+      const normalizedEmail = email.toLowerCase().trim();
+      const fallbackRole = ["agautamauc@gmail.com", "agautamrpr@gmail.com"].includes(normalizedEmail)
+        ? "admin"
+        : "user";
+
       const token = generateToken({
         userId: "local-" + Date.now(),
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         name: email.split("@")[0] || "User",
+        role: fallbackRole,
       });
 
       return NextResponse.json({
         message: "Logged in (Local mode)",
         user: {
           name: email.split("@")[0] || "User",
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
+          role: fallbackRole,
           workspace: "VLSI Labs Engineering",
         },
         token,
@@ -68,6 +75,7 @@ export async function POST(request: Request) {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        role: user.role || "user",
         workspace: user.workspace,
         profilePreferences: user.profilePreferences,
       },

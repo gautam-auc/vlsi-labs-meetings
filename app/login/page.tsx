@@ -41,6 +41,9 @@ export default function LoginPage() {
             if (data.user?.name) {
                 localStorage.setItem("vlsilabs_user_name", data.user.name);
             }
+            if (data.user?.role) {
+                localStorage.setItem("vlsilabs_user_role", data.user.role);
+            }
 
             router.push("/dashboard");
         } catch (err) {
@@ -59,6 +62,7 @@ export default function LoginPage() {
         setIsLoading(true);
         localStorage.setItem("vlsilabs_user_email", "agautamauc@gmail.com");
         localStorage.setItem("vlsilabs_user_name", "A. Gautam");
+        localStorage.setItem("vlsilabs_user_role", "admin");
         setTimeout(() => {
             router.push("/dashboard");
         }, 300);
