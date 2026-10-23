@@ -77,17 +77,17 @@ export default function Sidebar() {
         <>
             {/* Desktop Floating Curved Purple Navigation Rail (Behance Meeting Scheduler Style) */}
             <aside className="fixed left-4 top-4 bottom-4 z-40 hidden lg:flex w-20 flex-col items-center justify-between rounded-[2.2rem] bg-[#6d28d9] dark:bg-[#5b21b6] py-6 shadow-2xl shadow-purple-900/30 transition-all duration-300">
-                {/* Top Logo / Brand Emblem */}
+                {/* Top Logo / Brand Emblem with solid white background */}
                 <div className="flex flex-col items-center">
                     <Link
                         href="/"
                         title="VLSI Labs Home"
-                        className="group flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 hover:bg-white/25 text-white transition-all duration-200 active:scale-95"
+                        className="group flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg shadow-purple-950/30 p-2 hover:bg-slate-50 transition-all duration-200 active:scale-95 ring-2 ring-white/30"
                     >
                         <img
                             src="/logo.png"
                             alt="VLSI Labs"
-                            className="h-8 w-8 object-contain drop-shadow"
+                            className="h-8 w-8 object-contain transition-transform duration-200 group-hover:scale-105"
                         />
                     </Link>
                 </div>

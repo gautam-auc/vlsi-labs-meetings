@@ -17,15 +17,15 @@ interface MeetingItem {
     tag?: string;
 }
 
-const defaultWeeklySlots = [
-    { day: "Sun", date: "18", hasMeeting: false },
-    { day: "Mon", date: "19", hasMeeting: true, color: "bg-emerald-500", label: "EDA Review" },
-    { day: "Tue", date: "20", hasMeeting: true, color: "bg-purple-500", label: "STA Timing" },
-    { day: "Wed", date: "21", hasMeeting: true, color: "bg-cyan-500", label: "CAD Stream" },
-    { day: "Thu", date: "22", hasMeeting: true, color: "bg-pink-500", label: "Physical Design", isToday: true },
-    { day: "Fri", date: "23", hasMeeting: true, color: "bg-indigo-500", label: "Tapeout Sync" },
-    { day: "Sat", date: "24", hasMeeting: false },
-];
+interface DaySlot {
+    day: string;
+    date: string;
+    fullDate: Date;
+    isToday: boolean;
+    hasMeeting: boolean;
+    color: string;
+    label: string;
+}
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -36,6 +36,52 @@ export default function DashboardPage() {
     const [joinError, setJoinError] = useState("");
     const [userName, setUserName] = useState("A. Gautam");
     const [greeting, setGreeting] = useState("Good morning");
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [copiedMeetingId, setCopiedMeetingId] = useState<string | null>(null);
+
+    // Dynamic Live 7-Day Week Slots computed from live real-world date
+    const weeklySlots = useMemo<DaySlot[]>(() => {
+        const today = new Date();
+        const currentDayIndex = today.getDay(); // 0 is Sunday
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - currentDayIndex);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const dayColors = [
+            "bg-blue-500",
+            "bg-emerald-500",
+            "bg-purple-500",
+            "bg-cyan-500",
+            "bg-pink-500",
+            "bg-indigo-500",
+            "bg-amber-500",
+        ];
+        const dayLabels = [
+            "Architecture Review",
+            "EDA Review",
+            "STA Timing",
+            "CAD Stream",
+            "Physical Design",
+            "Tapeout Sync",
+            "Verification Sprint",
+        ];
+
+        return dayNames.map((dayName, idx) => {
+            const slotDate = new Date(startOfWeek);
+            slotDate.setDate(startOfWeek.getDate() + idx);
+            const isToday = slotDate.toDateString() === today.toDateString();
+            return {
+                day: dayName,
+                date: String(slotDate.getDate()),
+                fullDate: slotDate,
+                isToday,
+                hasMeeting: true,
+                color: dayColors[idx],
+                label: isToday ? "Live Sync Today" : dayLabels[idx],
+            };
+        });
+    }, []);
 
     // Dynamic Live Greeting based on local hour
     useEffect(() => {
@@ -191,16 +237,55 @@ export default function DashboardPage() {
         router.push(`/meet/${randomCode}`);
     };
 
-    // Quick Join Form
+    // Quick Join Form (Parses any format: raw ID, /meet/, /meeting/, full URL, or query strings)
     const handleQuickJoin = (e: React.FormEvent) => {
         e.preventDefault();
         const code = joinCode.trim();
         if (!code) {
-            setJoinError("Please enter a meeting code or ID");
+            setJoinError("Please enter a meeting code or invite URL");
             return;
         }
-        const cleanId = code.includes("/meet/") ? code.split("/meet/")[1].split("?")[0] : code;
+
+        let cleanId = code;
+        if (cleanId.includes("://") || cleanId.includes("/")) {
+            try {
+                const parsedUrl = new URL(cleanId.startsWith("http") ? cleanId : `https://${cleanId}`);
+                const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
+                const meetIdx = pathParts.findIndex((p) =>
+                    ["meet", "meeting", "meetings"].includes(p.toLowerCase())
+                );
+                if (meetIdx !== -1 && pathParts[meetIdx + 1]) {
+                    cleanId = pathParts[meetIdx + 1];
+                } else if (pathParts.length > 0) {
+                    cleanId = pathParts[pathParts.length - 1];
+                }
+            } catch {
+                const match = cleanId.match(/(?:meet|meeting|meetings)\/([^/?#]+)/i);
+                if (match && match[1]) {
+                    cleanId = match[1];
+                } else {
+                    cleanId = cleanId.split("/").filter(Boolean).pop() || cleanId;
+                }
+            }
+        }
+
+        cleanId = cleanId.split("?")[0].split("#")[0].trim();
+        if (!cleanId) {
+            setJoinError("Invalid meeting link format");
+            return;
+        }
+
         router.push(`/meet/${encodeURIComponent(cleanId)}`);
+    };
+
+    // Copy Invite Link to Clipboard
+    const copyInviteLink = (id: string) => {
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const url = `${origin}/meet/${id}`;
+        navigator.clipboard.writeText(url).then(() => {
+            setCopiedMeetingId(id);
+            setTimeout(() => setCopiedMeetingId(null), 2500);
+        });
     };
 
     // Delete meeting
@@ -284,17 +369,17 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* 3D Silicon Collaboration Visual on Right */}
+                        {/* 3D Silicon Collaboration Visual on Right with solid white background */}
                         <div className="hidden sm:flex absolute right-4 bottom-2 top-2 items-center justify-center pointer-events-none w-56">
                             <div className="relative flex flex-col items-center">
-                                <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-xl border border-white/25 shadow-2xl p-4">
+                                <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-white shadow-2xl p-4 border border-white/60 ring-4 ring-white/25">
                                     <img
                                         src="/logo.png"
                                         alt="VLSI Labs"
-                                        className="h-16 w-16 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.3)] animate-pulse"
+                                        className="h-16 w-16 object-contain drop-shadow-md"
                                     />
                                 </div>
-                                <span className="mt-2 text-[10px] font-mono tracking-wider text-purple-200 uppercase bg-white/10 px-2 py-0.5 rounded-full">
+                                <span className="mt-2.5 text-[10px] font-mono font-bold tracking-wider text-white uppercase bg-white/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-sm">
                                     60 FPS • WebRTC
                                 </span>
                             </div>
@@ -414,68 +499,99 @@ export default function DashboardPage() {
                                     <h3 className="text-sm font-bold text-slate-800 dark:text-white">
                                         Weekly Overview
                                     </h3>
-                                    <p className="text-xs text-slate-400">
-                                        Engineering sync schedule
+                                    <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                                        {selectedDate.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
                                     </p>
                                 </div>
-                                <span className="rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/40 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300">
-                                    Current Week
-                                </span>
+                                {selectedDate.toDateString() === new Date().toDateString() ? (
+                                    <span className="rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/40 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                                        Current Day · Today
+                                    </span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedDate(new Date())}
+                                        className="rounded-full bg-[#6d28d9] hover:bg-[#5b21b6] px-3.5 py-1 text-xs font-bold text-white shadow-sm transition active:scale-95 cursor-pointer"
+                                    >
+                                        Jump to Today ↩
+                                    </button>
+                                )}
                             </div>
 
                             {/* Timeline Days Bar */}
                             <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-                                {defaultWeeklySlots.map((slot) => (
-                                    <div
-                                        key={slot.day}
-                                        className={`flex flex-col items-center justify-center p-2 rounded-2xl transition-all ${
-                                            slot.isToday
-                                                ? "bg-[#6d28d9] text-white shadow-md shadow-purple-950/20 scale-105"
-                                                : "bg-purple-50/50 dark:bg-slate-800/40 hover:bg-purple-100/60 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300"
-                                        }`}
-                                    >
-                                        <span className={`text-[10px] font-bold uppercase ${slot.isToday ? "text-purple-200" : "text-slate-400"}`}>
-                                            {slot.day}
-                                        </span>
-                                        <span className="text-sm sm:text-base font-extrabold mt-0.5">
-                                            {slot.date}
-                                        </span>
-                                        {slot.hasMeeting && (
-                                            <span
-                                                className={`mt-1.5 h-1.5 w-1.5 rounded-full ${
-                                                    slot.isToday ? "bg-pink-300" : slot.color
-                                                }`}
-                                            />
-                                        )}
-                                    </div>
-                                ))}
+                                {weeklySlots.map((slot) => {
+                                    const isSelected = selectedDate.toDateString() === slot.fullDate.toDateString();
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={slot.day}
+                                            onClick={() => setSelectedDate(slot.fullDate)}
+                                            className={`flex flex-col items-center justify-center p-2 rounded-2xl transition-all cursor-pointer ${
+                                                isSelected
+                                                    ? "bg-[#6d28d9] text-white shadow-md shadow-purple-950/25 scale-105 ring-2 ring-purple-300 dark:ring-purple-500"
+                                                    : slot.isToday
+                                                    ? "bg-purple-100/90 dark:bg-purple-950/80 border-2 border-[#6d28d9] text-purple-950 dark:text-purple-200 font-bold hover:scale-102"
+                                                    : "bg-purple-50/50 dark:bg-slate-800/40 hover:bg-purple-100/60 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300"
+                                            }`}
+                                        >
+                                            <span className={`text-[10px] font-bold uppercase ${isSelected ? "text-purple-200" : slot.isToday ? "text-[#6d28d9] dark:text-purple-300" : "text-slate-400"}`}>
+                                                {slot.day}
+                                            </span>
+                                            <span className="text-sm sm:text-base font-extrabold mt-0.5">
+                                                {slot.date}
+                                            </span>
+                                            {slot.hasMeeting && (
+                                                <span
+                                                    className={`mt-1.5 h-1.5 w-1.5 rounded-full ${
+                                                        isSelected ? "bg-pink-300" : slot.isToday ? "bg-[#6d28d9] animate-pulse" : slot.color
+                                                    }`}
+                                                />
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {/* Visual Gantt Bar Slot Samples */}
                             <div className="mt-4 pt-4 border-t border-purple-100/60 dark:border-purple-900/30 space-y-2">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[11px] font-mono text-slate-400 w-12 shrink-0">10:00 AM</span>
-                                    <div className="flex-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
-                                        <span>Live: Silicon Tapeout Sync</span>
-                                        <span className="text-[10px] opacity-75">4K CAD 60FPS</span>
+                                {selectedDate.toDateString() === new Date().toDateString() ? (
+                                    <>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[11px] font-mono text-slate-400 w-12 shrink-0">10:00 AM</span>
+                                            <div className="flex-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                                                <span>Live: Silicon Tapeout Sync</span>
+                                                <span className="text-[10px] opacity-75">4K CAD 60FPS</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[11px] font-mono text-slate-400 w-12 shrink-0">02:30 PM</span>
+                                            <div className="flex-1 rounded-full bg-purple-500/15 border border-purple-500/30 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center justify-between">
+                                                <span>STA Timing & DRC Signoff</span>
+                                                <span className="text-[10px] opacity-75">Physical Design</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[11px] font-mono text-slate-400 w-12 shrink-0">11:00 AM</span>
+                                        <div className="flex-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-3 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center justify-between">
+                                            <span>{weeklySlots.find((s) => s.fullDate.toDateString() === selectedDate.toDateString())?.label || "Engineering Review"}</span>
+                                            <span className="text-[10px] opacity-75">Scheduled Sync</span>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[11px] font-mono text-slate-400 w-12 shrink-0">02:30 PM</span>
-                                    <div className="flex-1 rounded-full bg-purple-500/15 border border-purple-500/30 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300 flex items-center justify-between">
-                                        <span>STA Timing & DRC Signoff</span>
-                                        <span className="text-[10px] opacity-75">Physical Design</span>
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Today's Meetings Header & Card List */}
+                        {/* Meetings Header & Card List */}
                         <div>
                             <div className="flex items-center justify-between mb-3 px-1">
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white">
-                                        Today&apos;s Meetings
+                                        {selectedDate.toDateString() === new Date().toDateString()
+                                            ? "Today's Meetings"
+                                            : `${selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}'s Meetings`}
                                     </h2>
                                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#6d28d9] text-[10px] font-bold text-white">
                                         {filteredMeetings.length}
@@ -579,6 +695,17 @@ export default function DashboardPage() {
                                             </span>
                                         </div>
 
+                                        <div className="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                                            <span className="text-slate-400">Meeting Link</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => copyInviteLink(activeMeeting.meetingId)}
+                                                className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition cursor-pointer"
+                                            >
+                                                <span>{copiedMeetingId === activeMeeting.meetingId ? "✓ Copied!" : "Copy Link"}</span>
+                                            </button>
+                                        </div>
+
                                         <div className="flex items-center justify-between py-1">
                                             <span className="text-slate-400">Participants</span>
                                             <div className="flex items-center gap-1">
@@ -607,17 +734,28 @@ export default function DashboardPage() {
                                         </span>
                                     </div>
 
-                                    {/* Primary Join Button */}
-                                    <div className="mt-6 flex flex-col gap-2">
+                                    {/* Primary Join & Copy Invite Buttons */}
+                                    <div className="mt-6 flex flex-col gap-2.5">
                                         <a
                                             href={`/meet/${activeMeeting.meetingId}`}
-                                            className="flex items-center justify-center gap-2 rounded-full bg-[#6d28d9] hover:bg-[#5b21b6] py-3 text-xs font-bold text-white shadow-lg shadow-purple-900/25 transition active:scale-98"
+                                            className="flex items-center justify-center gap-2 rounded-full bg-[#6d28d9] hover:bg-[#5b21b6] py-3 text-xs font-bold text-white shadow-lg shadow-purple-900/25 transition hover:scale-[1.02] active:scale-98"
                                         >
                                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                             </svg>
                                             <span>Join Meeting Room Now</span>
                                         </a>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => copyInviteLink(activeMeeting.meetingId)}
+                                            className="flex items-center justify-center gap-2 rounded-full border border-purple-200 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 py-2.5 text-xs font-bold text-purple-700 dark:text-purple-300 transition active:scale-98 cursor-pointer"
+                                        >
+                                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            <span>{copiedMeetingId === activeMeeting.meetingId ? "✓ Invite Link Copied to Clipboard!" : "Copy Shareable Invite Link"}</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

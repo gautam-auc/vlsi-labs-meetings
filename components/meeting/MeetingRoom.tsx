@@ -1482,17 +1482,32 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                 </div>
 
                                 <div>
-                                    <h1 className="text-sm sm:text-base font-bold text-white tracking-wide">
-                                        Daily Standup Meeting
-                                    </h1>
-                                    <p className="text-[11px] text-slate-400">
-                                        {new Date().toLocaleDateString("en-GB", {
-                                            day: "numeric",
-                                            month: "long",
-                                            year: "numeric",
-                                        })}
-                                        {" · "}
-                                        <span className="font-mono text-purple-400 font-semibold">{meetingId}</span>
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                                            VLSI Live Session
+                                        </h1>
+                                        <button
+                                            type="button"
+                                            onClick={copyMeetingUrl}
+                                            className="inline-flex items-center gap-1 rounded-full bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/40 px-2.5 py-0.5 text-[10px] font-bold text-purple-200 transition active:scale-95 cursor-pointer"
+                                            title="Click to copy full meeting invite link"
+                                        >
+                                            <svg className="h-3 w-3 text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            <span>{copiedUrl ? "✓ Link Copied!" : "Copy Invite Link"}</span>
+                                        </button>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                        <span>
+                                            {new Date().toLocaleDateString("en-GB", {
+                                                day: "numeric",
+                                                month: "short",
+                                                year: "numeric",
+                                            })}
+                                        </span>
+                                        <span>·</span>
+                                        <span className="font-mono text-purple-300 font-semibold">{meetingId}</span>
                                     </p>
                                 </div>
                             </div>
@@ -1932,6 +1947,31 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                             {/* TAB CONTENT 2: PARTICIPANTS */}
                             {activeRightTab === "participants" && (
                                 <div className="flex-1 overflow-y-auto pt-3 space-y-2.5 scrollbar-thin">
+                                    {/* Invite Participants Link Card */}
+                                    <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-950/60 to-indigo-950/40 border border-purple-500/30 mb-3 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-bold text-purple-200">
+                                                Meeting Invite Link
+                                            </span>
+                                            <span className="font-mono text-[10px] text-purple-300 font-semibold">
+                                                {meetingId}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-300 truncate font-mono opacity-80">
+                                            {typeof window !== "undefined" ? `${window.location.origin}/meet/${meetingId}` : `/meet/${meetingId}`}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={copyMeetingUrl}
+                                            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] py-2 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition active:scale-95 cursor-pointer"
+                                        >
+                                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                            </svg>
+                                            <span>{copiedUrl ? "✓ Invite Link Copied!" : "Copy Shareable Link"}</span>
+                                        </button>
+                                    </div>
+
                                     {/* Local User */}
                                     <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5">
                                         <div className="flex items-center gap-2.5">
@@ -2209,6 +2249,28 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                         {/* MOBILE TAB 2: PARTICIPANTS */}
                         {activeRightTab === "participants" && (
                             <div className="flex-1 overflow-y-auto pt-3 space-y-2.5">
+                                {/* Mobile Invite Participants Link Card */}
+                                <div className="p-3 rounded-2xl bg-gradient-to-br from-purple-950/60 to-indigo-950/40 border border-purple-500/30 mb-2 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-purple-200">
+                                            Meeting Invite Link
+                                        </span>
+                                        <span className="font-mono text-[10px] text-purple-300 font-semibold">
+                                            {meetingId}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={copyMeetingUrl}
+                                        className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] py-2 text-xs font-bold text-white shadow-md shadow-purple-900/30 transition active:scale-95"
+                                    >
+                                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                        </svg>
+                                        <span>{copiedUrl ? "✓ Invite Link Copied!" : "Copy Meeting Link"}</span>
+                                    </button>
+                                </div>
+
                                 <div className="flex items-center justify-between p-2.5 rounded-2xl bg-white/5 border border-white/5">
                                     <div className="flex items-center gap-2.5">
                                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7c3aed] font-bold text-xs text-white">

@@ -10,7 +10,8 @@ export default function MeetingPage() {
         ? params.meetingId[0]
         : (params.meetingId as string);
 
-    const meetingId = (rawId || "").trim().toUpperCase();
+    const rawDecoded = rawId ? decodeURIComponent(rawId) : "";
+    const meetingId = rawDecoded.trim().toUpperCase();
 
     if (!meetingId) {
         return (

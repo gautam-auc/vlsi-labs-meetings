@@ -24,6 +24,17 @@ export default function LobbyScreen({
     const [camOn, setCamOn] = useState(true);
     const [micOn, setMicOn] = useState(true);
     const [camError, setCamError] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    const copyLobbyUrl = () => {
+        const url = typeof window !== "undefined" ? `${window.location.origin}/meet/${meetingId}` : "";
+        if (url) {
+            navigator.clipboard.writeText(url).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+            });
+        }
+    };
 
     // Start camera preview
     useEffect(() => {
@@ -71,12 +82,25 @@ export default function LobbyScreen({
     return (
         <main className="flex min-h-screen flex-col items-center justify-center bg-[#0c0e16] p-4 text-white">
             {/* Header */}
-            <div className="mb-6 flex items-center gap-3">
+            <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
                 <img src="/logo-text-white.png" alt="VLSI Labs" className="h-7 w-auto object-contain" />
-                <span className="h-4 w-px bg-white/20" />
-                <span className="text-sm font-medium text-slate-400">
-                    Meeting Room: <span className="font-mono text-purple-400 font-semibold">{meetingId}</span>
-                </span>
+                <span className="h-4 w-px bg-white/20 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-400">
+                        Meeting Room: <span className="font-mono text-purple-400 font-semibold">{meetingId}</span>
+                    </span>
+                    <button
+                        type="button"
+                        onClick={copyLobbyUrl}
+                        className="inline-flex items-center gap-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-0.5 text-xs text-purple-300 transition active:scale-95 cursor-pointer"
+                        title="Copy meeting invite URL"
+                    >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <span>{copied ? "✓ Copied!" : "Copy Link"}</span>
+                    </button>
+                </div>
             </div>
 
             {/* Main lobby grid */}
