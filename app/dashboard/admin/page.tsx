@@ -389,65 +389,74 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--text)] transition-colors duration-200">
+    <div className="min-h-screen bg-[#f8f9fe] dark:bg-[#0c0d14] text-slate-800 dark:text-slate-100 transition-colors duration-200">
       <Sidebar />
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-28 px-4 sm:px-6 py-4 sm:py-6 max-w-[1700px] mx-auto pb-24 lg:pb-8">
         <Header />
 
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main className="mt-6">
           <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
-            {/* Header with Title and Global Actions */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                    Admin & DaaS Reports Control Center
+            {/* Header Banner: Styled with Canyon Sunset Accent Gradient */}
+            <div className="relative overflow-hidden rounded-3xl border border-[#eb6d6d]/20 bg-gradient-to-r from-[#eb6d6d]/10 via-purple-500/10 to-indigo-600/10 p-6 sm:p-8 backdrop-blur-xl">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-[#eb6d6d]/15 blur-3xl" />
+              <div className="pointer-events-none absolute -left-10 -bottom-10 h-48 w-48 rounded-full bg-purple-500/15 blur-3xl" />
+
+              <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eb6d6d]/20 border border-[#eb6d6d]/30 px-3 py-1 text-xs font-bold text-[#eb6d6d] dark:text-[#f87171]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#eb6d6d] animate-pulse" />
+                      Executive Console
+                    </span>
+                    <span className="rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      Live MongoDB Sync
+                    </span>
+                  </div>
+                  <h1 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                    Admin & DaaS Control Center
                   </h1>
-                  <span className="rounded-full bg-blue-500/10 dark:bg-blue-500/20 px-3 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                    Live MongoDB Sync
-                  </span>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl">
+                    Authorized system management across real-time sessions, user permissions, CAD bandwidth, and database records.
+                  </p>
                 </div>
-                <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                  Full management authority across all meetings, role assignments, CAD bandwidth, and database records.
-                </p>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Diagnostics Button */}
-                <button
-                  type="button"
-                  onClick={runSystemDiagnostics}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-500/50"
-                >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Health Check
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Diagnostics Button */}
+                  <button
+                    type="button"
+                    onClick={runSystemDiagnostics}
+                    className="btn-interactive inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Health Check
+                  </button>
 
-                {/* Create Meeting Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsCreateMeetingOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                  New Enterprise Room
-                </button>
+                  {/* Create Meeting Button: Coral pill matching login CTA */}
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateMeetingOpen(true)}
+                    className="btn-interactive inline-flex items-center gap-1.5 rounded-full bg-[#eb6d6d] hover:bg-[#e05858] px-5 py-2 text-xs font-bold text-white shadow-lg shadow-[#eb6d6d]/30 transition cursor-pointer"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New Room
+                  </button>
 
-                {/* Refresh Data Button */}
-                <button
-                  type="button"
-                  onClick={fetchStats}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800"
-                  title="Refresh Data"
-                >
-                  <svg className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Sync</span>
-                </button>
+                  {/* Refresh Data Button */}
+                  <button
+                    type="button"
+                    onClick={fetchStats}
+                    className="btn-interactive inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-sm transition hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                    title="Refresh Data"
+                  >
+                    <svg className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Sync</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -465,15 +474,15 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* Top KPI Cards with Modern Glowing Accents */}
+            {/* Top KPI Cards with Canyon Accent Highlights */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Total Meetings */}
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 p-5 shadow-sm transition hover:shadow-md">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] p-6 shadow-sm transition hover:shadow-xl hover:border-[#eb6d6d]/40">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Total Meetings
                   </span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#eb6d6d]/15 text-[#eb6d6d]">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
@@ -488,13 +497,13 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Active Sessions */}
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 p-5 shadow-sm transition hover:shadow-md">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] p-6 shadow-sm transition hover:shadow-xl hover:border-emerald-500/40">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Active Live Rooms
                   </span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   </div>
                 </div>
                 <p className="mt-3 text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
@@ -506,12 +515,12 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Total Users */}
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 p-5 shadow-sm transition hover:shadow-md">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] p-6 shadow-sm transition hover:shadow-xl hover:border-purple-500/40">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Registered Users
                   </span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-500">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
@@ -526,12 +535,12 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* DaaS Bandwidth */}
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 p-5 shadow-sm transition hover:shadow-md">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] p-6 shadow-sm transition hover:shadow-xl hover:border-cyan-500/40">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     CAD / EDA Data Volume
                   </span>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-50 dark:bg-cyan-950/60 text-cyan-600 dark:text-cyan-400">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-500">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
@@ -546,15 +555,15 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Navigation Tabs */}
+            {/* Navigation Tabs: Pill Button Switcher Matching Auth Style */}
             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveTab("overview")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+                className={`rounded-full px-5 py-2 text-xs font-bold transition shrink-0 cursor-pointer ${
                   activeTab === "overview"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? "bg-[#eb6d6d] text-white shadow-lg shadow-[#eb6d6d]/30"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80"
                 }`}
               >
                 Telemetry & System
@@ -563,10 +572,10 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("users")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+                className={`rounded-full px-5 py-2 text-xs font-bold transition shrink-0 cursor-pointer ${
                   activeTab === "users"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? "bg-[#eb6d6d] text-white shadow-lg shadow-[#eb6d6d]/30"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80"
                 }`}
               >
                 User Access & Roles ({stats?.users?.length ?? 0})
@@ -575,10 +584,10 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("meetings")}
-                className={`rounded-xl px-4 py-2 text-xs font-bold transition shrink-0 ${
+                className={`rounded-full px-5 py-2 text-xs font-bold transition shrink-0 cursor-pointer ${
                   activeTab === "meetings"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    ? "bg-[#eb6d6d] text-white shadow-lg shadow-[#eb6d6d]/30"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80"
                 }`}
               >
                 Meeting Records ({stats?.meetings?.length ?? 0})
@@ -705,8 +714,8 @@ export default function AdminDashboardPage() {
 
             {/* TAB 2: USER DIRECTORY & ROLE MANAGEMENT */}
             {activeTab === "users" && (
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 shadow-sm overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 p-5 gap-3">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 p-6 gap-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
                       Registered Users & Access Roles
@@ -723,13 +732,13 @@ export default function AdminDashboardPage() {
                       placeholder="Search users..."
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                      className="rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:border-[#eb6d6d]"
                     />
 
                     <select
                       value={userRoleFilter}
                       onChange={(e) => setUserRoleFilter(e.target.value as any)}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                      className="rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
                     >
                       <option value="all">All Roles</option>
                       <option value="admin">Admins Only</option>
@@ -739,7 +748,7 @@ export default function AdminDashboardPage() {
                     <button
                       type="button"
                       onClick={exportUsersCsv}
-                      className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                      className="btn-interactive rounded-full bg-[#eb6d6d] hover:bg-[#e05858] px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-[#eb6d6d]/20 transition cursor-pointer"
                     >
                       Export CSV
                     </button>
@@ -828,8 +837,8 @@ export default function AdminDashboardPage() {
 
             {/* TAB 3: MEETING DIRECTORY & AUDIT */}
             {activeTab === "meetings" && (
-              <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 shadow-sm overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 p-5 gap-3">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 p-6 gap-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
                       All Workspace Meetings
@@ -846,13 +855,13 @@ export default function AdminDashboardPage() {
                       placeholder="Search code or title..."
                       value={meetingSearch}
                       onChange={(e) => setMeetingSearch(e.target.value)}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                      className="rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-4 py-1.5 text-xs text-slate-900 dark:text-white outline-none focus:border-[#eb6d6d]"
                     />
 
                     <select
                       value={meetingStatusFilter}
                       onChange={(e) => setMeetingStatusFilter(e.target.value as any)}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                      className="rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
                     >
                       <option value="all">All Statuses</option>
                       <option value="live">Live Only</option>
@@ -864,7 +873,7 @@ export default function AdminDashboardPage() {
                     <button
                       type="button"
                       onClick={handlePurgeInactive}
-                      className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition"
+                      className="btn-interactive rounded-full border border-red-500/30 bg-red-500/10 px-4 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition cursor-pointer"
                       title="Delete all cancelled & completed meetings"
                     >
                       Purge Inactive
@@ -873,7 +882,7 @@ export default function AdminDashboardPage() {
                     <button
                       type="button"
                       onClick={exportMeetingsCsv}
-                      className="rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                      className="btn-interactive rounded-full bg-[#eb6d6d] hover:bg-[#e05858] px-4 py-1.5 text-xs font-bold text-white shadow-md shadow-[#eb6d6d]/20 transition cursor-pointer"
                     >
                       Export CSV
                     </button>

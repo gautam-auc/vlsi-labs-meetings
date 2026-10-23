@@ -2,9 +2,9 @@ import Link from "next/link";
 
 export default function Footer() {
     return (
-        <footer className="border-t border-slate-200 dark:border-slate-800 bg-[var(--background)] text-[var(--text)] transition-colors duration-200">
-            <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10 lg:px-8">
-                <div className="flex flex-col justify-between gap-8 sm:flex-row">
+        <footer className="border-t border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950 text-[var(--text)] transition-colors duration-200">
+            <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 py-8 sm:py-10 lg:px-8">
+                <div className="flex flex-col justify-between gap-6 sm:gap-8 sm:flex-row">
                     {/* Brand */}
                     <div>
                         <Link href="/" className="flex items-center gap-3">
@@ -23,13 +23,13 @@ export default function Footer() {
                             </div>
                         </Link>
 
-                        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                        <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed">
                             High performance video collaboration built for engineering teams.
                         </p>
                     </div>
 
                     {/* Links */}
-                    <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap gap-x-6 gap-y-2.5 sm:gap-x-8 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                         <a
                             href="#product"
                             className="transition hover:text-slate-900 dark:hover:text-white"

@@ -19,7 +19,8 @@
   --success: #10b981;
 }
 
-.dark {
+.dark,
+[data-theme="dark"] {
   --background: #080c14;
   --surface: #0f172a;
   --surface-elevated: #1e293b;
@@ -102,4 +103,231 @@ video {
 
 a {
   text-decoration: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PREMIUM LANDING PAGE ENTRANCE & CLICK MICRO-ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulseHalo {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes shimmerGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-entrance-1 {
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+.animate-entrance-2 {
+  animation: fadeInUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both;
+}
+
+.animate-entrance-3 {
+  animation: fadeInUp 0.95s cubic-bezier(0.16, 1, 0.3, 1) 0.32s both;
+}
+
+.animate-entrance-4 {
+  animation: fadeInScale 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+}
+
+.animate-float {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+.animate-pulse-halo {
+  animation: pulseHalo 4s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% 200%;
+  animation: shimmerGradient 6s ease infinite;
+}
+
+/* Interactive click ripple and scale */
+.btn-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-interactive:active {
+  transform: scale(0.96);
+}
+.btn-interactive:hover {
+  transform: translateY(-1.5px);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HIGH-TECH SILICON / EDA COLLABORATION ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
+
+/* Subtle silicon tech grid — clean in light mode, luminous in dark mode */
+.tech-grid {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.2) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.dark .tech-grid {
+  background-image: radial-gradient(rgba(56, 189, 248, 0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Audio wave equalizer bars for active speakers */
+@keyframes soundBar1 {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+@keyframes soundBar2 {
+  0%, 100% { height: 16px; }
+  50% { height: 6px; }
+}
+@keyframes soundBar3 {
+  0%, 100% { height: 8px; }
+  50% { height: 20px; }
+}
+@keyframes soundBar4 {
+  0%, 100% { height: 14px; }
+  50% { height: 5px; }
+}
+
+.equalizer-1 { animation: soundBar1 0.75s ease-in-out infinite; }
+.equalizer-2 { animation: soundBar2 0.85s ease-in-out infinite 0.1s; }
+.equalizer-3 { animation: soundBar3 0.65s ease-in-out infinite 0.2s; }
+.equalizer-4 { animation: soundBar4 0.9s ease-in-out infinite 0.05s; }
+
+/* Floating Telemetry HUD Badges */
+@keyframes floatHud1 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(0.5deg); }
+}
+@keyframes floatHud2 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-9px) rotate(-0.5deg); }
+}
+@keyframes floatHud3 {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(0.4deg); }
+}
+
+.animate-hud-1 { animation: floatHud1 4.5s ease-in-out infinite; }
+.animate-hud-2 { animation: floatHud2 5.5s ease-in-out infinite 0.5s; }
+.animate-hud-3 { animation: floatHud3 5s ease-in-out infinite 1s; }
+
+/* Radar Live Beacon Ripple */
+@keyframes radarWave {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.animate-radar {
+  animation: radarWave 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+/* Light sweep across buttons and cards */
+@keyframes sweepPass {
+  0% { transform: translateX(-100%); }
+  50%, 100% { transform: translateX(200%); }
+}
+.shimmer-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-sweep::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: sweepPass 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Circuit trace dash flow */
+@keyframes circuitDash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+.animate-circuit-dash {
+  stroke-dasharray: 6 6;
+  animation: circuitDash 2.5s linear infinite;
+}
+
+/* Flying Emoji Reactions Animation */
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 1; transform: translateY(-40px) scale(1.2); }
+  80% { opacity: 0.9; }
+  100% { transform: translateY(-340px) scale(1); opacity: 0; }
+}
+
+.animate-float-up {
+  animation: floatUp 2.8s ease-out forwards;
+}
+
+/* Sleek In-Box Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.25);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
 }

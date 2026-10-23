@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import VideoTile, { VideoTileRef } from "./VideoTile";
 import MeetingControls from "./MeetingControls";
-import { soundEngine } from "@/lib/sounds";
-import { captionsEngine, CaptionEvent } from "@/lib/speechRecognition";
+import LobbyScreen from "./LobbyScreen";
+import { soundEngine } from "../../lib/sounds";
+import { captionsEngine, CaptionEvent } from "../../lib/speechRecognition";
+
 
 type RemoteParticipant = {
     socketId: string;
@@ -1293,73 +1295,18 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     }, []);
 
     /* =========================================================
-       PRE-JOIN LOBBY
+       PRE-JOIN LOBBY — Google Meet Style with Live Camera Preview
     ========================================================= */
     if (!joined) {
         return (
-            <main className="flex min-h-screen items-center justify-center bg-[#0a0d14] p-4 text-white">
-                <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#121622] p-8 shadow-2xl">
-                    <div className="flex items-center gap-3">
-                        <img src="/logo.png" alt="VLSI Labs" className="h-10 w-auto object-contain" />
-                        <div>
-                            <h1 className="text-lg font-bold text-white">VLSI Labs Meetings</h1>
-                            <p className="text-xs text-slate-400">Ready to join session</p>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4">
-                        <span className="text-[11px] font-bold tracking-wider uppercase text-blue-400">
-                            Meeting Code
-                        </span>
-                        <p className="mt-1 font-mono text-sm font-semibold text-slate-200">
-                            {meetingId}
-                        </p>
-                    </div>
-
-                    <div className="mt-5">
-                        <label className="block text-xs font-semibold text-slate-300">
-                            Your Display Name
-                        </label>
-                        <input
-                            type="text"
-                            value={participantName}
-                            onChange={(e) => setParticipantName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && participantName.trim()) {
-                                    joinRoom();
-                                }
-                            }}
-                            placeholder="e.g. Gautam (Physical Design)"
-                            className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            autoFocus
-                        />
-                    </div>
-
-                    {error && (
-                        <div className="mt-4 rounded-xl border border-red-500/30 bg-red-950/50 p-3 text-xs text-red-400">
-                            {error}
-                        </div>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={() => joinRoom()}
-                        disabled={joining || !participantName.trim()}
-                        className="mt-6 w-full rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {joining ? "Connecting to room..." : "Join Now"}
-                    </button>
-
-                    <div className="mt-6 flex items-center justify-between border-t border-slate-800/80 pt-4">
-                        <a href="/" className="text-xs text-slate-400 hover:text-white transition">
-                            ← Back to Home
-                        </a>
-                        <a href="/dashboard" className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition">
-                            Open Dashboard
-                        </a>
-                    </div>
-                </div>
-            </main>
+            <LobbyScreen
+                meetingId={meetingId}
+                onJoin={joinRoom}
+                joining={joining}
+                error={error}
+                participantName={participantName}
+                setParticipantName={setParticipantName}
+            />
         );
     }
 
@@ -1387,20 +1334,6 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(90,45,140,0.3),transparent_45%),radial-gradient(circle_at_85%_75%,rgba(35,50,90,0.35),transparent_55%),linear-gradient(to_bottom,rgba(10,12,18,0.92),rgba(14,16,24,0.97))]" />
             <div className="pointer-events-none absolute -left-20 top-20 h-80 w-80 rounded-full bg-purple-600/10 blur-[100px]" />
             <div className="pointer-events-none absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-blue-600/10 blur-[100px]" />
-
-            {/* Custom CSS for Flying Emoji Reactions */}
-            <style jsx>{`
-                @keyframes floatUp {
-                    0% { transform: translateY(0) scale(0.6); opacity: 0; }
-                    20% { opacity: 1; transform: translateY(-40px) scale(1.2); }
-                    80% { opacity: 0.9; }
-                    100% { transform: translateY(-340px) scale(1); opacity: 0; }
-                }
-                .animate-float-up {
-                    animation: floatUp 2.8s ease-out forwards;
-                }
-            `}</style>
-
             {/* Flying Animated Reactions Overlay */}
             {flyingReactions.map((r) => (
                 <div
