@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "../../components/dashboard/Sidebar";
 import Header from "../../components/dashboard/Header";
 import MeetingCard from "../../components/dashboard/MeetingCard";
+import { getPublicMeetingUrl } from "@/lib/utils";
 
 interface MeetingItem {
     title: string;
@@ -280,8 +281,7 @@ export default function DashboardPage() {
 
     // Copy Invite Link to Clipboard
     const copyInviteLink = (id: string) => {
-        const origin = typeof window !== "undefined" ? window.location.origin : "";
-        const url = `${origin}/meet/${id}`;
+        const url = getPublicMeetingUrl(id);
         navigator.clipboard.writeText(url).then(() => {
             setCopiedMeetingId(id);
             setTimeout(() => setCopiedMeetingId(null), 2500);

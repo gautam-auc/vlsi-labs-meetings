@@ -44,32 +44,6 @@ io.on("connection", (socket) => {
                 `${cleanName} (${socket.id}) joining meeting ${meetingId}`
             );
 
-            const existingRoom = io.sockets.adapter.rooms.get(meetingId);
-
-            // Clean up any stale/ghost sockets for the same participant name (e.g. mobile reload)
-            if (existingRoom && cleanName !== "Participant") {
-                for (const oldId of Array.from(existingRoom)) {
-                    if (oldId !== socket.id) {
-                        const oldSocket = io.sockets.sockets.get(oldId);
-                        if (
-                            oldSocket &&
-                            oldSocket.data?.participantName === cleanName
-                        ) {
-                            console.log(
-                                `Evicting stale socket ${oldId} for rejoining user ${cleanName}`
-                            );
-                            socket.to(meetingId).emit("user-left", {
-                                socketId: oldId,
-                            });
-                            oldSocket.leave(meetingId);
-                            try {
-                                oldSocket.disconnect(true);
-                            } catch {}
-                        }
-                    }
-                }
-            }
-
             socket.join(meetingId);
 
             const room = io.sockets.adapter.rooms.get(meetingId);

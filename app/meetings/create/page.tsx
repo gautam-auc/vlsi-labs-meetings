@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "../../../components/ThemeToggle";
+import { getPublicMeetingUrl } from "@/lib/utils";
 
 type Meeting = {
     id: string;
@@ -108,7 +109,7 @@ export default function CreateMeetingPage() {
 
     const handleCopyInvite = async () => {
         if (!createdMeeting) return;
-        const url = `${window.location.origin}/meet/${createdMeeting.id}`;
+        const url = getPublicMeetingUrl(createdMeeting.id);
         try {
             await navigator.clipboard.writeText(url);
             setCopied(true);

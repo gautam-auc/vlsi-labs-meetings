@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getPublicMeetingUrl } from "@/lib/utils";
 
 type LobbyScreenProps = {
     meetingId: string;
@@ -27,7 +28,7 @@ export default function LobbyScreen({
     const [copied, setCopied] = useState(false);
 
     const copyLobbyUrl = () => {
-        const url = typeof window !== "undefined" ? `${window.location.origin}/meet/${meetingId}` : "";
+        const url = getPublicMeetingUrl(meetingId);
         if (url) {
             navigator.clipboard.writeText(url).then(() => {
                 setCopied(true);

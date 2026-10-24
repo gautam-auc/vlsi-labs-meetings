@@ -8,6 +8,7 @@ import MeetingControls from "./MeetingControls";
 import LobbyScreen from "./LobbyScreen";
 import { soundEngine } from "../../lib/sounds";
 import { captionsEngine, CaptionEvent } from "../../lib/speechRecognition";
+import { getPublicMeetingUrl } from "../../lib/utils";
 
 
 type RemoteParticipant = {
@@ -53,9 +54,7 @@ type MediaStateMessage =
 
 const SOCKET_URL =
     process.env.NEXT_PUBLIC_SOCKET_URL ||
-    (process.env.NODE_ENV === "development"
-        ? "http://localhost:4000"
-        : "https://vlsi-labs-meetings.onrender.com");
+    "https://vlsi-labs-meetings.onrender.com";
 
 /* =========================================================
    PERSISTENT REMOTE AUDIO SINK (Never unmounted, with Echo Guard)
@@ -280,12 +279,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             remoteNamesRef.current[socketId] = cleanName;
 
             setRemoteParticipants((current) => {
-                // Strict deduplication: remove any existing participant with the same socketId OR same cleanName
-                const filtered = current.filter(
-                    (p) =>
-                        p.socketId !== socketId &&
-                        (cleanName === "Participant" || p.name !== cleanName)
-                );
+                // Strict deduplication by socketId only (supports same-name attendees and multi-device self testing)
+                const filtered = current.filter((p) => p.socketId !== socketId);
 
                 const cachedMediaState = remoteMediaStatesRef.current[socketId];
                 return [
@@ -580,22 +575,14 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
         peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
-            if (
-                state === "closed" ||
-                state === "disconnected" ||
-                state === "failed"
-            ) {
+            if (state === "closed" || state === "failed") {
                 removeParticipant(remoteSocketId);
             }
         };
 
         peerConnection.oniceconnectionstatechange = () => {
             const iceState = peerConnection.iceConnectionState;
-            if (
-                iceState === "failed" ||
-                iceState === "disconnected" ||
-                iceState === "closed"
-            ) {
+            if (iceState === "failed" || iceState === "closed") {
                 removeParticipant(remoteSocketId);
             }
         };
@@ -663,7 +650,9 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         remoteNamesRef.current[data.sender] = remoteName;
         addRemoteParticipant(data.sender, remoteName);
 
-        const peerConnection = createPeerConnection(data.sender, remoteName, false);
+        const peerConnection =
+            peerConnectionsRef.current[data.sender] ||
+            createPeerConnection(data.sender, remoteName, false);
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             await flushPendingIceCandidates(data.sender, peerConnection);
@@ -693,7 +682,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
     const handleIceCandidate = async (data: { sender: string; candidate: RTCIceCandidateInit }) => {
         const peerConnection = peerConnectionsRef.current[data.sender];
-        if (!peerConnection) {
+        if (!peerConnection || !peerConnection.remoteDescription) {
             if (!pendingIceCandidatesRef.current[data.sender]) {
                 pendingIceCandidatesRef.current[data.sender] = [];
             }
@@ -777,9 +766,9 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
         try {
             const socket = io(SOCKET_URL, {
-                transports: ["polling", "websocket"],
+                transports: ["websocket", "polling"],
                 reconnection: true,
-                reconnectionAttempts: 10,
+                reconnectionAttempts: 15,
                 reconnectionDelay: 1000,
             });
 
@@ -1191,7 +1180,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     };
 
     const copyMeetingUrl = () => {
-        const url = typeof window !== "undefined" ? `${window.location.origin}/meet/${meetingId}` : "";
+        const url = getPublicMeetingUrl(meetingId);
         if (url) {
             navigator.clipboard.writeText(url).then(() => {
                 setCopiedUrl(true);
@@ -1324,7 +1313,6 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     const otherRemotes = remoteParticipants.filter(
         (p) =>
             p.socketId !== socketRef.current?.id &&
-            p.name.trim().toLowerCase() !== (participantName || "").trim().toLowerCase() &&
             (pinnedSocketId === "local" || p.socketId !== activeRemote?.socketId)
     );
 
@@ -1958,7 +1946,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                             </span>
                                         </div>
                                         <p className="text-[10px] text-slate-300 truncate font-mono opacity-80">
-                                            {typeof window !== "undefined" ? `${window.location.origin}/meet/${meetingId}` : `/meet/${meetingId}`}
+                                            {getPublicMeetingUrl(meetingId)}
                                         </p>
                                         <button
                                             type="button"

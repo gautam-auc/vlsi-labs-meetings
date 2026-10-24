@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getPublicMeetingUrl } from "@/lib/utils";
 
 type MeetingCardProps = {
     title: string;
@@ -30,7 +31,7 @@ export default function MeetingCard({
 
     const handleCopy = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        const fullUrl = `${window.location.origin}/meet/${meetingId}`;
+        const fullUrl = getPublicMeetingUrl(meetingId);
         try {
             await navigator.clipboard.writeText(fullUrl);
             setCopied(true);
