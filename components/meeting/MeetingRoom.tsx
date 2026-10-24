@@ -507,8 +507,17 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 { urls: "stun:stun1.l.google.com:19302" },
                 { urls: "stun:stun2.l.google.com:19302" },
                 { urls: "stun:stun3.l.google.com:19302" },
-                { urls: "stun:stun4.l.google.com:19302" },
                 { urls: "stun:stun.cloudflare.com:3478" },
+                {
+                    urls: [
+                        "turn:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:443",
+                        "turn:openrelay.metered.ca:443?transport=tcp",
+                        "turns:openrelay.metered.ca:443?transport=tcp",
+                    ],
+                    username: "openrelayproject",
+                    credential: "openrelayproject",
+                },
             ],
             iceCandidatePoolSize: 10,
         });
@@ -575,15 +584,25 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
 
         peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
-            if (state === "closed" || state === "failed") {
-                removeParticipant(remoteSocketId);
+            console.log(`[WebRTC] connectionState (${remoteSocketId}):`, state);
+            if (state === "failed") {
+                console.warn(`[WebRTC] Peer connection failed for ${remoteSocketId}, attempting ICE restart...`);
+                try {
+                    peerConnection.restartIce();
+                } catch {}
             }
+            // CRITICAL: NEVER evict participants from the meeting room on WebRTC network state.
+            // Socket.IO "user-left" is the only authority for removing a participant when they actually leave.
         };
 
         peerConnection.oniceconnectionstatechange = () => {
             const iceState = peerConnection.iceConnectionState;
-            if (iceState === "failed" || iceState === "closed") {
-                removeParticipant(remoteSocketId);
+            console.log(`[WebRTC] iceConnectionState (${remoteSocketId}):`, iceState);
+            if (iceState === "failed") {
+                console.warn(`[WebRTC] ICE failed for ${remoteSocketId}, attempting ICE restart...`);
+                try {
+                    peerConnection.restartIce();
+                } catch {}
             }
         };
 
@@ -794,15 +813,13 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             );
 
             socket.on("connect_error", (connectionError) => {
-                console.error("Socket connection error:", connectionError);
-                setError("Could not connect to signaling server. Checking connection...");
-                setJoining(false);
-                stream.getTracks().forEach((track) => track.stop());
+                console.warn("Signaling socket connection note:", connectionError?.message || connectionError);
             });
 
             socket.on("connect", () => {
                 console.log("Connected to signaling server:", socket.id);
-                socket.emit("join-room", { meetingId, participantName: name });
+                const normMeetingId = (meetingId || "").trim().toUpperCase();
+                socket.emit("join-room", { meetingId: normMeetingId, participantName: name });
                 sendMediaState();
 
                 // Attendance recording

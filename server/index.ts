@@ -39,14 +39,15 @@ io.on("connection", (socket) => {
             meetingId: string;
             participantName: string;
         }) => {
+            const cleanMeetingId = (meetingId || "").trim().toUpperCase();
             const cleanName = (participantName || "Participant").trim();
             console.log(
-                `${cleanName} (${socket.id}) joining meeting ${meetingId}`
+                `${cleanName} (${socket.id}) joining meeting ${cleanMeetingId}`
             );
 
-            socket.join(meetingId);
+            socket.join(cleanMeetingId);
 
-            const room = io.sockets.adapter.rooms.get(meetingId);
+            const room = io.sockets.adapter.rooms.get(cleanMeetingId);
 
             const existingUsers = room
                 ? Array.from(room)
@@ -69,12 +70,12 @@ io.on("connection", (socket) => {
 
             socket.emit("existing-users", existingUsers);
 
-            socket.to(meetingId).emit("user-joined", {
+            socket.to(cleanMeetingId).emit("user-joined", {
                 socketId: socket.id,
                 participantName: cleanName,
             });
 
-            socket.data.meetingId = meetingId;
+            socket.data.meetingId = cleanMeetingId;
             socket.data.participantName = cleanName;
         }
     );
