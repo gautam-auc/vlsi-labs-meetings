@@ -11,6 +11,7 @@ type VideoTileProps = {
     stream: MediaStream | null;
     name: string;
     muted?: boolean;
+    cameraEnabled?: boolean;
     isScreen?: boolean;
     micEnabled?: boolean;
     isSpeaking?: boolean;
@@ -24,6 +25,7 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
         stream,
         name,
         muted = false,
+        cameraEnabled = true,
         isScreen = false,
         micEnabled = true,
         isSpeaking = false,
@@ -66,7 +68,7 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
             const live = videoTracks.some(
                 (track) => track.readyState === "live" && track.enabled
             );
-            setHasLiveVideo(isScreen || live || videoTracks.length > 0);
+            setHasLiveVideo(isScreen || live);
         };
 
         checkTracks();
@@ -109,7 +111,14 @@ const VideoTile = forwardRef<VideoTileRef, VideoTileProps>(function VideoTile(
 
     const [objectFitMode, setObjectFitMode] = useState<"cover" | "contain">("cover");
 
-    const isVideoVisible = isScreen || hasLiveVideo || (stream && stream.getVideoTracks().length > 0);
+    const hasLiveVideoTrack = Boolean(
+        stream &&
+        stream.getVideoTracks().some((track) => track.readyState === "live" && track.enabled)
+    );
+
+    const isVideoVisible = Boolean(
+        isScreen || (cameraEnabled && (hasLiveVideoTrack || hasLiveVideo))
+    );
 
     const activeFitClass = isScreen ? "object-contain bg-black" : objectFitMode === "cover" ? "object-cover object-center" : "object-contain object-center bg-[#0d0e14]";
 

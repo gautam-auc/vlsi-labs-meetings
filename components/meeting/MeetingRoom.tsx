@@ -582,14 +582,28 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             addRemoteParticipant(remoteSocketId, remoteName, remoteStream);
         };
 
+        const triggerIceRestart = async () => {
+            try {
+                console.log(`[WebRTC] Triggering ICE restart offer for ${remoteSocketId}`);
+                peerConnection.restartIce();
+                const offer = await peerConnection.createOffer({ iceRestart: true });
+                await peerConnection.setLocalDescription(offer);
+                socketRef.current?.emit("offer", {
+                    target: remoteSocketId,
+                    offer,
+                    participantName: participantNameRef.current,
+                });
+            } catch (err) {
+                console.warn(`[WebRTC] ICE restart failed for ${remoteSocketId}:`, err);
+            }
+        };
+
         peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
             console.log(`[WebRTC] connectionState (${remoteSocketId}):`, state);
             if (state === "failed") {
                 console.warn(`[WebRTC] Peer connection failed for ${remoteSocketId}, attempting ICE restart...`);
-                try {
-                    peerConnection.restartIce();
-                } catch {}
+                triggerIceRestart();
             }
             // CRITICAL: NEVER evict participants from the meeting room on WebRTC network state.
             // Socket.IO "user-left" is the only authority for removing a participant when they actually leave.
@@ -600,9 +614,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             console.log(`[WebRTC] iceConnectionState (${remoteSocketId}):`, iceState);
             if (iceState === "failed") {
                 console.warn(`[WebRTC] ICE failed for ${remoteSocketId}, attempting ICE restart...`);
-                try {
-                    peerConnection.restartIce();
-                } catch {}
+                triggerIceRestart();
             }
         };
 
@@ -719,7 +731,10 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     /* =========================================================
        JOIN MEETING (Combines Media with Maximum Echo Cancellation)
     ========================================================= */
-    const joinRoom = async (overrideName?: string) => {
+    const joinRoom = async (
+        overrideName?: string,
+        initialOptions?: { micEnabled: boolean; cameraEnabled: boolean }
+    ) => {
         const name = (overrideName || participantName).trim();
         if (!name) {
             setError("Please enter your name to join");
@@ -729,59 +744,114 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         setJoining(true);
         setError("");
 
-        let stream: MediaStream;
-        try {
-            // Enhanced constraints for acoustic echo cancellation & noise suppression
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-                video: {
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 },
-                },
-            });
-            setMicEnabled(true);
-            setCameraEnabled(true);
-        } catch (combinedErr) {
-            console.warn("Combined getUserMedia failed, attempting fallbacks:", combinedErr);
-            stream = new MediaStream();
+        // Allow mobile camera hardware HAL to release after LobbyScreen unmounts
+        await new Promise((r) => setTimeout(r, 150));
 
+        let stream: MediaStream;
+        const wantMic = initialOptions?.micEnabled ?? true;
+        const wantCamera = initialOptions?.cameraEnabled ?? true;
+
+        if (!wantCamera) {
+            // User requested camera OFF from lobby: avoid acquiring camera hardware
+            stream = new MediaStream();
+            if (wantMic) {
+                try {
+                    const audioStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                        },
+                    });
+                    audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+                    setMicEnabled(true);
+                    micEnabledRef.current = true;
+                } catch (audioErr) {
+                    console.warn("Microphone access failed:", audioErr);
+                    setMicEnabled(false);
+                    micEnabledRef.current = false;
+                }
+            } else {
+                setMicEnabled(false);
+                micEnabledRef.current = false;
+            }
+            setCameraEnabled(false);
+            cameraEnabledRef.current = false;
+        } else {
+            // User requested camera ON: acquire combined with mobile-friendly constraints
             try {
-                const audioStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: wantMic
+                        ? {
+                              echoCancellation: true,
+                              noiseSuppression: true,
+                              autoGainControl: true,
+                          }
+                        : false,
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: facingMode || "user",
                     },
                 });
-                audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
-                setMicEnabled(true);
-            } catch (audioErr) {
-                console.warn("Microphone access failed:", audioErr);
-                setMicEnabled(false);
-            }
+                const hasLiveCam = stream.getVideoTracks().length > 0;
+                const hasLiveMic = stream.getAudioTracks().length > 0;
+                setMicEnabled(wantMic && hasLiveMic);
+                micEnabledRef.current = wantMic && hasLiveMic;
+                setCameraEnabled(hasLiveCam);
+                cameraEnabledRef.current = hasLiveCam;
+            } catch (combinedErr) {
+                console.warn("Combined getUserMedia failed, attempting fallbacks:", combinedErr);
+                stream = new MediaStream();
 
-            try {
-                const videoStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-                });
-                videoStream.getVideoTracks().forEach((track) => stream.addTrack(track));
-                setCameraEnabled(true);
-            } catch (videoErr) {
-                console.warn("Camera access failed:", videoErr);
-                setCameraEnabled(false);
+                if (wantMic) {
+                    try {
+                        const audioStream = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true,
+                            },
+                        });
+                        audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+                        setMicEnabled(true);
+                        micEnabledRef.current = true;
+                    } catch (audioErr) {
+                        console.warn("Microphone access failed:", audioErr);
+                        setMicEnabled(false);
+                        micEnabledRef.current = false;
+                    }
+                } else {
+                    setMicEnabled(false);
+                    micEnabledRef.current = false;
+                }
+
+                try {
+                    const videoStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            facingMode: facingMode || "user",
+                        },
+                    });
+                    videoStream.getVideoTracks().forEach((track) => stream.addTrack(track));
+                    setCameraEnabled(true);
+                    cameraEnabledRef.current = true;
+                } catch (videoErr) {
+                    console.warn("Camera access failed:", videoErr);
+                    setCameraEnabled(false);
+                    cameraEnabledRef.current = false;
+                }
             }
         }
 
         stream.getAudioTracks().forEach((t) => {
-            t.enabled = true;
+            t.enabled = wantMic;
         });
 
         localStreamRef.current = stream;
-        setLocalPreviewStream(stream);
+        const liveVideoTracks = stream.getVideoTracks().filter((t) => t.readyState === "live");
+        setLocalPreviewStream(liveVideoTracks.length > 0 ? stream : null);
 
         try {
             const socket = io(SOCKET_URL, {
@@ -820,7 +890,10 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 console.log("Connected to signaling server:", socket.id);
                 const normMeetingId = (meetingId || "").trim().toUpperCase();
                 socket.emit("join-room", { meetingId: normMeetingId, participantName: name });
-                sendMediaState();
+                sendMediaState({
+                    cameraEnabled: cameraEnabledRef.current,
+                    screenSharing: false,
+                });
 
                 // Attendance recording
                 fetch(`/api/meetings/${meetingId}/join`, {
@@ -949,7 +1022,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             );
             cameraEnabledRef.current = true;
             setCameraEnabled(true);
-            setLocalPreviewStream(stream);
+            setLocalPreviewStream(new MediaStream(stream.getTracks()));
             sendMediaState({ cameraEnabled: true });
         } catch (err) {
             console.error("Camera restart error:", err);
@@ -1307,7 +1380,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         return (
             <LobbyScreen
                 meetingId={meetingId}
-                onJoin={joinRoom}
+                onJoin={(name, opts) => joinRoom(name, opts)}
                 joining={joining}
                 error={error}
                 participantName={participantName}
@@ -1657,6 +1730,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         name={`${participantName || "You"} (Host)`}
                                         muted
                                         micEnabled={micEnabled}
+                                        cameraEnabled={cameraEnabled}
                                         isScreen={false}
                                         isMainSpeaker
                                     />
@@ -1665,7 +1739,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         ref={mainVideoRef}
                                         stream={activeRemote.stream}
                                         name={`${activeRemote.name} · Screen`}
-                                        micEnabled={activeRemote.cameraEnabled !== false}
+                                        micEnabled={true}
+                                        cameraEnabled={true}
                                         isScreen
                                         isPinned
                                         onPin={() => setPinnedSocketId(null)}
@@ -1678,6 +1753,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         name={`${participantName || "You"} (Pinned)`}
                                         muted
                                         micEnabled={micEnabled}
+                                        cameraEnabled={cameraEnabled}
                                         isScreen={false}
                                         isPinned
                                         onPin={() => setPinnedSocketId(null)}
@@ -1689,7 +1765,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         stream={activeRemote ? activeRemote.stream : localPreviewStream}
                                         name={activeRemote ? activeRemote.name : `${participantName || "You"}`}
                                         muted={!activeRemote}
-                                        micEnabled={activeRemote ? activeRemote.cameraEnabled !== false : micEnabled}
+                                        micEnabled={activeRemote ? true : micEnabled}
+                                        cameraEnabled={activeRemote ? activeRemote.cameraEnabled : cameraEnabled}
                                         isScreen={activeRemote ? activeRemote.screenSharing : false}
                                         isPinned={Boolean(pinnedSocketId)}
                                         onPin={() =>
@@ -1711,10 +1788,11 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         title="Your camera view"
                                     >
                                         <VideoTile
-                                            stream={localStreamRef.current || localPreviewStream}
+                                            stream={localPreviewStream}
                                             name="You"
                                             muted
                                             micEnabled={micEnabled}
+                                            cameraEnabled={cameraEnabled}
                                             isScreen={false}
                                         />
                                     </div>
@@ -1748,10 +1826,11 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                     }`}
                                 >
                                     <VideoTile
-                                        stream={localStreamRef.current || localPreviewStream}
+                                        stream={localPreviewStream}
                                         name="You"
                                         muted
                                         micEnabled={micEnabled}
+                                        cameraEnabled={cameraEnabled}
                                         isScreen={false}
                                     />
                                 </div>
@@ -1767,7 +1846,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         <VideoTile
                                             stream={otherRemotes[0].stream}
                                             name={otherRemotes[0].name}
-                                            micEnabled={otherRemotes[0].cameraEnabled !== false}
+                                            micEnabled={true}
+                                            cameraEnabled={otherRemotes[0].cameraEnabled}
                                             isScreen={otherRemotes[0].screenSharing}
                                         />
                                     ) : (
@@ -1794,7 +1874,8 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                                         <VideoTile
                                             stream={otherRemotes[1].stream}
                                             name={otherRemotes[1].name}
-                                            micEnabled={otherRemotes[1].cameraEnabled !== false}
+                                            micEnabled={true}
+                                            cameraEnabled={otherRemotes[1].cameraEnabled}
                                             isScreen={otherRemotes[1].screenSharing}
                                         />
                                     ) : (

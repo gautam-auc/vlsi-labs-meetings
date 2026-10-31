@@ -5,7 +5,7 @@ import { getPublicMeetingUrl } from "@/lib/utils";
 
 type LobbyScreenProps = {
     meetingId: string;
-    onJoin: (name?: string) => void;
+    onJoin: (name?: string, options?: { micEnabled: boolean; cameraEnabled: boolean }) => void;
     joining: boolean;
     error: string;
     participantName: string;
@@ -221,7 +221,9 @@ export default function LobbyScreen({
                             value={participantName}
                             onChange={(e) => setParticipantName(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && participantName.trim()) onJoin();
+                                if (e.key === "Enter" && participantName.trim()) {
+                                    onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError });
+                                }
                             }}
                             placeholder="e.g. Gautam – Physical Design"
                             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition"
@@ -239,7 +241,7 @@ export default function LobbyScreen({
                     {/* Join button */}
                     <button
                         type="button"
-                        onClick={() => onJoin()}
+                        onClick={() => onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError })}
                         disabled={joining || !participantName.trim()}
                         className="w-full rounded-2xl bg-blue-600 py-4 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
                     >
