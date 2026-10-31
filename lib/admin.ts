@@ -1,17 +1,12 @@
 import { verifyToken } from "./auth";
 
-export const DEFAULT_ADMIN_EMAILS = [
-    "agautamauc@gmail.com",
-    "agautamrpr@gmail.com",
-];
-
 export function getAdminEmails(): string[] {
     const envEmails = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
         .split(",")
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
 
-    return Array.from(new Set([...DEFAULT_ADMIN_EMAILS, ...envEmails]));
+    return Array.from(new Set(envEmails));
 }
 
 export function isUserAdmin(

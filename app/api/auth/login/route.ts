@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { verifyPassword, generateToken } from "../../../../lib/auth";
+import { isUserAdmin } from "../../../../lib/admin";
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     if (!db) {
       // Graceful local fallback if MongoDB is not connected yet
       const normalizedEmail = email.toLowerCase().trim();
-      const fallbackRole = ["agautamauc@gmail.com", "agautamrpr@gmail.com"].includes(normalizedEmail)
+      const fallbackRole = isUserAdmin(normalizedEmail)
         ? "admin"
         : "user";
 

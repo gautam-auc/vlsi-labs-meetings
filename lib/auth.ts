@@ -1,7 +1,20 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "vlsilabs-secret-key-change-in-production-2026";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === "production" ? "" : "vlsilabs-secret-key-change-in-production-2026");
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  console.error("CRITICAL: JWT_SECRET environment variable is missing in production environment!");
+}
+
+export function getJwtSecret(): string {
+  if (!JWT_SECRET) {
+    throw new Error("JWT_SECRET must be configured in environment variables.");
+  }
+  return JWT_SECRET;
+}
 
 export interface TokenPayload {
   userId: string;
@@ -20,14 +33,14 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export function generateToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, getJwtSecret(), {
     expiresIn: "7d",
   });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, getJwtSecret()) as TokenPayload;
   } catch {
     return null;
   }

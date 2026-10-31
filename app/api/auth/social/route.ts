@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { isUserAdmin } from "../../../../lib/admin";
-
-const JWT_SECRET = process.env.JWT_SECRET || "vlsi-labs-super-secret-key-2026";
+import { getJwtSecret } from "../../../../lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -54,7 +52,7 @@ export async function POST(request: Request) {
         email: normalizedEmail,
         role: finalRole,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "7d" }
     );
 

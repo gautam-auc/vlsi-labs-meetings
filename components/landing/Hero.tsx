@@ -300,7 +300,7 @@ export default function Hero() {
                                         Admin Control Center
                                     </p>
                                     <p className="text-[11px] text-slate-500 dark:text-slate-400 break-all sm:break-normal">
-                                        Authorized access: <span className="font-mono text-blue-600 dark:text-blue-400">agautamauc@gmail.com</span> / <span className="font-mono text-blue-600 dark:text-blue-400">agautamrpr@gmail.com</span>
+                                        Authorized access: <span className="font-mono text-blue-600 dark:text-blue-400">Verified administrator credentials required</span>
                                     </p>
                                 </div>
                             </div>
