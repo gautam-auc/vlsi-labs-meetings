@@ -316,12 +316,12 @@ export default function Hero() {
                 </div>
 
                 {/* Right Column: Floating Company Logo with Animated HUD Telemetry Badges */}
-                <div className="animate-entrance-4 relative mx-auto flex w-full max-w-xl lg:max-w-2xl items-center justify-center py-2 sm:py-6 lg:py-8">
+                <div id="telemetry" className="animate-entrance-4 relative mx-auto flex w-full max-w-xl lg:max-w-2xl items-center justify-center py-2 sm:py-6 lg:py-8 scroll-mt-24">
                     {/* Multi-layered ambient radiant backlights — Dark Mode Only */}
                     <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[3rem] hidden dark:block bg-gradient-to-tr from-cyan-400/30 via-blue-500/30 to-indigo-600/30 blur-3xl opacity-90 animate-pulse-halo" />
                     <div className="pointer-events-none absolute -inset-2 -z-10 rounded-full hidden dark:block bg-blue-500/20 blur-2xl" />
 
-                    {/* Floating Telemetry HUD Badge 1: Top-Right CAD 60 FPS */}
+                    {/* Floating Telemetry HUD Badge 1: Top-Right CAD WebRTC Stream */}
                     <div className="animate-hud-1 absolute top-0 right-0 sm:-top-2 sm:right-6 z-20 flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border border-slate-200/90 dark:border-cyan-500/30 bg-white/95 dark:bg-slate-900/95 px-2.5 sm:px-3.5 py-1.5 sm:py-2 shadow-lg sm:shadow-xl backdrop-blur-md">
                         <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                             <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -330,7 +330,7 @@ export default function Hero() {
                         </div>
                         <div>
                             <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-cyan-400 leading-none">CAD Stream</p>
-                            <p className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-white mt-0.5 leading-none">60 FPS 4K WebRTC</p>
+                            <p className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-white mt-0.5 leading-none">HD WebRTC CAD Stream</p>
                         </div>
                     </div>
 
@@ -347,10 +347,10 @@ export default function Hero() {
                         </div>
                     </div>
 
-                    {/* Floating Telemetry HUD Badge 3: Bottom-Right 14ms Latency */}
+                    {/* Floating Telemetry HUD Badge 3: Bottom-Right Optimized Latency */}
                     <div className="animate-hud-3 absolute bottom-6 right-0 sm:bottom-8 sm:right-4 z-20 hidden xs:flex items-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border border-slate-200/90 dark:border-cyan-500/30 bg-white/95 dark:bg-slate-900/95 px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-lg sm:shadow-xl backdrop-blur-md">
                         <span className="flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-cyan-500 animate-pulse" />
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-cyan-200">14ms Ultra-Low Latency</p>
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 dark:text-cyan-200">Optimized WebRTC Latency</p>
                     </div>
 
                     <div className="animate-float relative flex flex-col items-center justify-center p-2 sm:p-6 lg:p-8 text-center transition-all duration-300">

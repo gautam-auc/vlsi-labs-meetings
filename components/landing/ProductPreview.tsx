@@ -39,7 +39,7 @@ export default function ProductPreview() {
                                     <div className="flex items-center gap-2">
                                         <p className="text-xs text-slate-400 font-medium">Live CAD Session</p>
                                         <span className="text-[10px] text-cyan-400 font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/40 shrink-0">
-                                            14ms • 60 FPS
+                                            Low Latency • HD
                                         </span>
                                     </div>
 
