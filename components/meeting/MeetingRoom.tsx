@@ -796,6 +796,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                     console.warn("Microphone access failed:", audioErr);
                     setMicEnabled(false);
                     micEnabledRef.current = false;
+                    setError("Microphone permission denied. You are joined with mic muted.");
                 }
             } else {
                 setMicEnabled(false);
@@ -846,6 +847,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                         console.warn("Microphone access failed:", audioErr);
                         setMicEnabled(false);
                         micEnabledRef.current = false;
+                        setError("Microphone permission denied. You are joined with mic muted.");
                     }
                 } else {
                     setMicEnabled(false);

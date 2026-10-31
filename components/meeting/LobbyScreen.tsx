@@ -25,7 +25,30 @@ export default function LobbyScreen({
     const [camOn, setCamOn] = useState(true);
     const [micOn, setMicOn] = useState(true);
     const [camError, setCamError] = useState(false);
+    const [micError, setMicError] = useState(false);
+    const [mediaNotice, setMediaNotice] = useState("");
+    const [roomStatus, setRoomStatus] = useState<"checking" | "valid" | "cancelled" | "not_found">("checking");
+    const [roomNotice, setRoomNotice] = useState("");
     const [copied, setCopied] = useState(false);
+
+    // Verify room existence and status before join
+    useEffect(() => {
+        if (!meetingId) return;
+        fetch(`/api/meetings/${encodeURIComponent(meetingId)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (data?.meeting?.status === "cancelled") {
+                    setRoomStatus("cancelled");
+                    setRoomNotice("This meeting session has been cancelled by the host.");
+                } else if (data?.meeting?.status === "completed") {
+                    setRoomStatus("cancelled");
+                    setRoomNotice("This meeting session has concluded.");
+                } else {
+                    setRoomStatus("valid");
+                }
+            })
+            .catch(() => setRoomStatus("valid"));
+    }, [meetingId]);
 
     const copyLobbyUrl = () => {
         const url = getPublicMeetingUrl(meetingId);
@@ -37,24 +60,63 @@ export default function LobbyScreen({
         }
     };
 
-    // Start camera preview
+    // Start camera & microphone preview with separate fallbacks and clear error reporting
     useEffect(() => {
         let stream: MediaStream | null = null;
 
         async function startPreview() {
+            let hasVideo = false;
+            let hasAudio = false;
+
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
                     audio: true,
                 });
-                setLocalStream(stream);
-                setCamError(false);
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play().catch(() => {});
+                hasVideo = stream.getVideoTracks().length > 0;
+                hasAudio = stream.getAudioTracks().length > 0;
+            } catch (err: any) {
+                // Combined request failed, probe video and audio independently
+                stream = new MediaStream();
+
+                try {
+                    const videoOnly = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                    });
+                    videoOnly.getVideoTracks().forEach((t) => stream?.addTrack(t));
+                    hasVideo = true;
+                } catch {
+                    hasVideo = false;
                 }
-            } catch {
-                setCamError(true);
+
+                try {
+                    const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioOnly.getAudioTracks().forEach((t) => stream?.addTrack(t));
+                    hasAudio = true;
+                } catch {
+                    hasAudio = false;
+                }
+            }
+
+            setLocalStream(stream);
+            setCamError(!hasVideo);
+            setCamOn(hasVideo);
+            setMicError(!hasAudio);
+            setMicOn(hasAudio);
+
+            if (!hasVideo && !hasAudio) {
+                setMediaNotice("Camera and microphone access was denied. Please allow device permissions in your browser.");
+            } else if (!hasVideo) {
+                setMediaNotice("Camera access was denied. You will join with audio only.");
+            } else if (!hasAudio) {
+                setMediaNotice("Microphone access was denied. You will join muted.");
+            } else {
+                setMediaNotice("");
+            }
+
+            if (videoRef.current && stream && hasVideo) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(() => {});
             }
         }
 
@@ -195,9 +257,12 @@ export default function LobbyScreen({
                             )}
                         </button>
 
-                        <div className="ml-2 text-xs text-slate-500">
-                            {camError && "Grant camera access in your browser"}
-                        </div>
+                        {/* Mic & Cam status indicators */}
+                        {mediaNotice && (
+                            <div className="w-full text-center text-xs text-amber-400 bg-amber-950/40 border border-amber-500/30 rounded-xl py-2 px-3">
+                                {mediaNotice}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -210,6 +275,13 @@ export default function LobbyScreen({
                         </p>
                     </div>
 
+                    {/* Room notice if cancelled/concluded */}
+                    {roomNotice && (
+                        <div className="rounded-xl border border-rose-500/40 bg-rose-950/60 p-3 text-xs text-rose-300 font-medium">
+                            ⚠️ {roomNotice}
+                        </div>
+                    )}
+
                     {/* Name input */}
                     <div>
                         <label htmlFor="lobby-name" className="mb-1.5 block text-xs font-semibold text-slate-300">
@@ -221,12 +293,13 @@ export default function LobbyScreen({
                             value={participantName}
                             onChange={(e) => setParticipantName(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && participantName.trim()) {
+                                if (e.key === "Enter" && participantName.trim() && roomStatus !== "cancelled") {
                                     onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError });
                                 }
                             }}
+                            disabled={roomStatus === "cancelled"}
                             placeholder="e.g. Gautam – Physical Design"
-                            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition disabled:opacity-50"
                             autoFocus
                         />
                     </div>
@@ -242,10 +315,12 @@ export default function LobbyScreen({
                     <button
                         type="button"
                         onClick={() => onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError })}
-                        disabled={joining || !participantName.trim()}
+                        disabled={joining || !participantName.trim() || roomStatus === "cancelled"}
                         className="w-full rounded-2xl bg-blue-600 py-4 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
                     >
-                        {joining ? (
+                        {roomStatus === "cancelled" ? (
+                            "Session Unavailable"
+                        ) : joining ? (
                             <span className="flex items-center justify-center gap-2">
                                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                                 Connecting...
