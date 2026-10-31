@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { Meeting } from "../../../../models/Meeting";
+import { verifyAdminRequest } from "../../../../lib/admin";
 
 export async function PATCH(request: Request) {
   try {
+    if (!verifyAdminRequest(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized. Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { meetingId, status } = body;
 
@@ -48,6 +56,13 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    if (!verifyAdminRequest(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized. Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const meetingId = searchParams.get("meetingId");
     const purgeAllCancelled = searchParams.get("purgeCancelled") === "true";

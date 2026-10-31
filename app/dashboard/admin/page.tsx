@@ -79,11 +79,21 @@ export default function AdminDashboardPage() {
     timestamp: string;
   } | null>(null);
 
+  function getAuthHeaders(extra?: Record<string, string>) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("vlsilabs_token") : null;
+    return {
+      ...(extra || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }
+
   async function fetchStats() {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch("/api/admin/stats");
+      const res = await fetch("/api/admin/stats", {
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) {
         throw new Error("Failed to load admin stats");
       }
@@ -120,7 +130,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/admin/users", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ userId, role: newRole }),
       });
 
@@ -147,6 +157,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch(`/api/admin/users?userId=${encodeURIComponent(userId)}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       if (res.ok) {
@@ -168,7 +179,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/admin/meetings", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ meetingId, status }),
       });
       const data = await res.json();
@@ -192,6 +203,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch(`/api/admin/meetings?meetingId=${encodeURIComponent(meetingId)}`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       if (res.ok) {
@@ -214,6 +226,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch(`/api/admin/meetings?purgeCancelled=true`, {
         method: "DELETE",
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       if (res.ok) {
@@ -272,7 +285,9 @@ export default function AdminDashboardPage() {
     const start = performance.now();
 
     try {
-      const dbCheck = await fetch("/api/admin/stats");
+      const dbCheck = await fetch("/api/admin/stats", {
+        headers: getAuthHeaders(),
+      });
       const elapsedDb = Math.round(performance.now() - start);
 
       setDiagnosticReport({

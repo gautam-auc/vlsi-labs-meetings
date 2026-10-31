@@ -74,12 +74,25 @@ function LoginForm() {
         }
     }
 
-    function handleDemoAdminLogin() {
+    async function handleDemoAdminLogin() {
         setIsLoading(true);
+        try {
+            const res = await fetch("/api/auth/social", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    provider: "google",
+                    email: "agautamauc@gmail.com",
+                    name: "A. Gautam",
+                }),
+            });
+            const data = await res.json();
+            if (data.token) localStorage.setItem("vlsilabs_token", data.token);
+        } catch {}
         localStorage.setItem("vlsilabs_user_email", "agautamauc@gmail.com");
         localStorage.setItem("vlsilabs_user_name", "A. Gautam");
         localStorage.setItem("vlsilabs_user_role", "admin");
-        setTimeout(() => router.push("/dashboard/admin"), 300);
+        setTimeout(() => router.push("/dashboard/admin"), 200);
     }
 
     function handleDemoUserLogin() {

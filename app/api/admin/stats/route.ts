@@ -2,9 +2,17 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { Meeting } from "../../../../models/Meeting";
 import { User } from "../../../../models/User";
+import { verifyAdminRequest } from "../../../../lib/admin";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    if (!verifyAdminRequest(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized. Admin privileges required." },
+        { status: 403 }
+      );
+    }
+
     const db = await connectToDatabase();
 
     if (!db) {
