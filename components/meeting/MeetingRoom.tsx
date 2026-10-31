@@ -501,6 +501,31 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
             } catch {}
         }
 
+        const customTurnUrl = process.env.NEXT_PUBLIC_TURN_SERVER_URL;
+        const customTurnUser = process.env.NEXT_PUBLIC_TURN_USERNAME;
+        const customTurnCred = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
+
+        const turnServers: RTCIceServer[] = customTurnUrl
+            ? [
+                  {
+                      urls: customTurnUrl.split(",").map((u) => u.trim()),
+                      username: customTurnUser,
+                      credential: customTurnCred,
+                  },
+              ]
+            : [
+                  {
+                      urls: [
+                          "turn:openrelay.metered.ca:80",
+                          "turn:openrelay.metered.ca:443",
+                          "turn:openrelay.metered.ca:443?transport=tcp",
+                          "turns:openrelay.metered.ca:443?transport=tcp",
+                      ],
+                      username: "openrelayproject",
+                      credential: "openrelayproject",
+                  },
+              ];
+
         const peerConnection = new RTCPeerConnection({
             iceServers: [
                 { urls: "stun:stun.l.google.com:19302" },
@@ -508,16 +533,7 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                 { urls: "stun:stun2.l.google.com:19302" },
                 { urls: "stun:stun3.l.google.com:19302" },
                 { urls: "stun:stun.cloudflare.com:3478" },
-                {
-                    urls: [
-                        "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443",
-                        "turn:openrelay.metered.ca:443?transport=tcp",
-                        "turns:openrelay.metered.ca:443?transport=tcp",
-                    ],
-                    username: "openrelayproject",
-                    credential: "openrelayproject",
-                },
+                ...turnServers,
             ],
             iceCandidatePoolSize: 10,
         });
@@ -537,6 +553,16 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
                     console.error("Failed to add track to peer connection:", err);
                 }
             });
+        }
+
+        // Late Joiner Fix: If currently screen sharing, stream active screen track to this peer
+        if (screenSharingRef.current && screenStreamRef.current) {
+            const activeScreenTrack = screenStreamRef.current.getVideoTracks().find((t) => t.readyState === "live");
+            if (activeScreenTrack && videoSendersRef.current[remoteSocketId]) {
+                videoSendersRef.current[remoteSocketId].replaceTrack(activeScreenTrack).catch((err) => {
+                    console.warn("Failed to attach active screen track to late joiner:", err);
+                });
+            }
         }
 
         // Guarantee bidirectional transceivers
@@ -1279,19 +1305,51 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
         }
     };
 
+    const cleanupSession = useCallback(() => {
+        try {
+            captionsEngine.stop();
+        } catch {}
+
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                try {
+                    track.stop();
+                } catch {}
+            });
+            localStreamRef.current = null;
+        }
+
+        if (screenStreamRef.current) {
+            screenStreamRef.current.getTracks().forEach((track) => {
+                try {
+                    track.stop();
+                } catch {}
+            });
+            screenStreamRef.current = null;
+        }
+
+        Object.values(peerConnectionsRef.current).forEach((pc) => {
+            try {
+                pc.close();
+            } catch {}
+        });
+        peerConnectionsRef.current = {};
+        videoSendersRef.current = {};
+        audioSendersRef.current = {};
+        dataChannelsRef.current = {};
+
+        if (socketRef.current) {
+            try {
+                socketRef.current.emit("leave-room");
+                socketRef.current.disconnect();
+            } catch {}
+            socketRef.current = null;
+        }
+    }, []);
+
     const leaveMeeting = () => {
         soundEngine.playLeaveSound();
-        captionsEngine.stop();
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach((track) => track.stop());
-        }
-        if (screenStreamRef.current) {
-            screenStreamRef.current.getTracks().forEach((track) => track.stop());
-        }
-        Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
-        if (socketRef.current) {
-            socketRef.current.disconnect();
-        }
+        cleanupSession();
         router.push("/dashboard");
     };
 
@@ -1360,18 +1418,19 @@ export default function MeetingRoom({ meetingId }: MeetingRoomProps) {
     }, [meetingId]);
 
     useEffect(() => {
-        return () => {
-            captionsEngine.stop();
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach((track) => track.stop());
-            }
-            if (screenStreamRef.current) {
-                screenStreamRef.current.getTracks().forEach((track) => track.stop());
-            }
-            Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
-            if (socketRef.current) socketRef.current.disconnect();
+        const handleUnload = () => {
+            cleanupSession();
         };
-    }, []);
+
+        window.addEventListener("beforeunload", handleUnload);
+        window.addEventListener("pagehide", handleUnload);
+
+        return () => {
+            window.removeEventListener("beforeunload", handleUnload);
+            window.removeEventListener("pagehide", handleUnload);
+            cleanupSession();
+        };
+    }, [cleanupSession]);
 
     /* =========================================================
        PRE-JOIN LOBBY — Google Meet Style with Live Camera Preview

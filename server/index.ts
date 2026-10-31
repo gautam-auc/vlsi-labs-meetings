@@ -182,6 +182,18 @@ io.on("connection", (socket) => {
         }
     );
 
+    socket.on("leave-room", () => {
+        const meetingId = socket.data?.meetingId;
+        if (meetingId) {
+            console.log(`User ${socket.id} explicitly left room ${meetingId}`);
+            socket.leave(meetingId);
+            socket.to(meetingId).emit("user-left", {
+                socketId: socket.id,
+            });
+            delete socket.data.meetingId;
+        }
+    });
+
     socket.on("disconnect", () => {
         console.log(
             "User disconnected:",
