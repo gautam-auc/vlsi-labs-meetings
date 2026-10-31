@@ -39,6 +39,7 @@ export default function DashboardPage() {
     const [greeting, setGreeting] = useState("Good morning");
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [copiedMeetingId, setCopiedMeetingId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Dynamic Live 7-Day Week Slots computed from live real-world date
     const weeklySlots = useMemo<DaySlot[]>(() => {
@@ -151,6 +152,11 @@ export default function DashboardPage() {
     // Load user & meetings
     useEffect(() => {
         const storedName = localStorage.getItem("vlsilabs_user_name");
+        const storedEmail = localStorage.getItem("vlsilabs_user_email");
+        if (!storedEmail && !storedName) {
+            router.replace("/login");
+            return;
+        }
         if (storedName) setUserName(storedName);
 
         async function load() {
@@ -170,6 +176,7 @@ export default function DashboardPage() {
                         }));
                         setMeetings(formatted);
                         setSelectedMeetingId(formatted[0].meetingId);
+                        setIsLoading(false);
                         return;
                     }
                 }
@@ -191,6 +198,7 @@ export default function DashboardPage() {
                         }));
                         setMeetings(formatted);
                         setSelectedMeetingId(formatted[0].meetingId);
+                        setIsLoading(false);
                         return;
                     }
                 }
@@ -228,6 +236,7 @@ export default function DashboardPage() {
             ];
             setMeetings(defaults);
             setSelectedMeetingId(defaults[0].meetingId);
+            setIsLoading(false);
         }
         load();
     }, []);
