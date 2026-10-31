@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { isUserAdmin } from "../../../../lib/admin";
