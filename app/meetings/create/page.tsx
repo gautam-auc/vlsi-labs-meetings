@@ -30,6 +30,7 @@ export default function CreateMeetingPage() {
     const [isCreating, setIsCreating] = useState(false);
     const [createdMeeting, setCreatedMeeting] = useState<Meeting | null>(null);
     const [copied, setCopied] = useState(false);
+    const [error, setError] = useState("");
 
     function generateMeetingId() {
         const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -45,6 +46,7 @@ export default function CreateMeetingPage() {
         if (!title.trim()) return;
 
         setIsCreating(true);
+        setError("");
 
         const newId = generateMeetingId();
         const meeting: Meeting = {
@@ -60,12 +62,16 @@ export default function CreateMeetingPage() {
         };
 
         try {
-            const hostName = localStorage.getItem("vlsilabs_user_name") || "A. Gautam";
-            const hostEmail = localStorage.getItem("vlsilabs_user_email") || "";
+            const token = localStorage.getItem("vlsilabs_token");
+            if (!token) {
+                setError("Please sign in before creating a meeting.");
+                setIsCreating(false);
+                return;
+            }
 
             const res = await fetch("/api/meetings", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                     title: meeting.title,
                     description: meeting.description,
@@ -74,19 +80,23 @@ export default function CreateMeetingPage() {
                     duration: meeting.duration,
                     mode: meeting.mode,
                     participants: meeting.participants,
-                    hostName,
-                    hostEmail,
                 }),
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                if (data.meeting?.meetingId) {
-                    meeting.id = data.meeting.meetingId;
-                }
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error || "Could not create the meeting.");
+                setIsCreating(false);
+                return;
+            }
+            if (data.meeting?.meetingId) {
+                meeting.id = data.meeting.meetingId;
             }
         } catch (err) {
-            console.error("Failed to post meeting to API, using local sync:", err);
+            console.error("Failed to post meeting to API:", err);
+            setError("Could not reach the meeting service. Please try again.");
+            setIsCreating(false);
+            return;
         }
 
         const existingMeetings = JSON.parse(
@@ -164,6 +174,12 @@ export default function CreateMeetingPage() {
                         Generate an instant WebRTC room or schedule a future engineering discussion.
                     </p>
                 </div>
+
+                {error && (
+                    <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                        {error}
+                    </div>
+                )}
 
                 {/* Created success modal / card */}
                 {createdMeeting ? (

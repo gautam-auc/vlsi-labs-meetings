@@ -161,7 +161,10 @@ export default function DashboardPage() {
 
         async function load() {
             try {
-                const res = await fetch("/api/meetings");
+                const token = localStorage.getItem("vlsilabs_token");
+                const res = await fetch("/api/meetings", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data.meetings) && data.meetings.length > 0) {
@@ -182,60 +185,8 @@ export default function DashboardPage() {
                 }
             } catch {}
 
-            try {
-                const saved = localStorage.getItem("vlsilabs_meetings");
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        const formatted = parsed.map((m: any) => ({
-                            title: m.title || "Physical Design Sync",
-                            date: m.date || "Scheduled",
-                            time: m.time || "04:30 PM",
-                            participants: m.participants ? (typeof m.participants === "string" ? m.participants.split(",").map((p: string) => p.trim()) : m.participants) : ["Gautam", "Arch Lead"],
-                            status: "upcoming" as const,
-                            meetingId: m.id || m.meetingId || "session",
-                            tag: "EDA Review",
-                        }));
-                        setMeetings(formatted);
-                        setSelectedMeetingId(formatted[0].meetingId);
-                        setIsLoading(false);
-                        return;
-                    }
-                }
-            } catch {}
-
-            // Default demo meetings matching Behance design
-            const defaults: MeetingItem[] = [
-                {
-                    title: "Silicon Tapeout Sync · Architecture",
-                    date: "Today",
-                    time: "02:30 PM",
-                    participants: ["AG", "Rajesh", "Priya", "John"],
-                    status: "live",
-                    meetingId: "vlsi-tapeout-sync",
-                    tag: "4K CAD Stream",
-                },
-                {
-                    title: "STA Timing & DRC Signoff",
-                    date: "Today",
-                    time: "04:00 PM",
-                    participants: ["AG", "Chen", "Anita"],
-                    status: "upcoming",
-                    meetingId: "vlsi-sta-timing",
-                    tag: "Physical Design",
-                },
-                {
-                    title: "RTL Verification & DFT Sprint",
-                    date: "Tomorrow",
-                    time: "10:30 AM",
-                    participants: ["AG", "Vikram", "Elena"],
-                    status: "upcoming",
-                    meetingId: "vlsi-rtl-dft",
-                    tag: "Verification",
-                },
-            ];
-            setMeetings(defaults);
-            setSelectedMeetingId(defaults[0].meetingId);
+            setMeetings([]);
+            setSelectedMeetingId(null);
             setIsLoading(false);
         }
         load();
@@ -243,8 +194,7 @@ export default function DashboardPage() {
 
     // Instant Room Generation
     const handleInstantMeeting = () => {
-        const randomCode = `vlsi-${Math.random().toString(36).substring(2, 7)}-${Math.random().toString(36).substring(2, 6)}`;
-        router.push(`/meet/${randomCode}`);
+        router.push("/meetings/create");
     };
 
     // Quick Join Form (Parses any format: raw ID, /meet/, /meeting/, full URL, or query strings)
@@ -305,7 +255,11 @@ export default function DashboardPage() {
             setSelectedMeetingId(remaining[0]?.meetingId || null);
         }
         try {
-            await fetch(`/api/meetings?id=${id}`, { method: "DELETE" });
+            const token = localStorage.getItem("vlsilabs_token");
+            await fetch(`/api/meetings/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
         } catch {}
     };
 

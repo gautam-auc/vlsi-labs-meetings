@@ -35,19 +35,25 @@ export default function LobbyScreen({
     useEffect(() => {
         if (!meetingId) return;
         fetch(`/api/meetings/${encodeURIComponent(meetingId)}`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
+            .then(async (res) => ({ ok: res.ok, data: res.ok ? await res.json() : null }))
+            .then(({ ok, data }) => {
                 if (data?.meeting?.status === "cancelled") {
                     setRoomStatus("cancelled");
                     setRoomNotice("This meeting session has been cancelled by the host.");
                 } else if (data?.meeting?.status === "completed") {
                     setRoomStatus("cancelled");
                     setRoomNotice("This meeting session has concluded.");
+                } else if (!ok || !data?.meeting) {
+                    setRoomStatus("not_found");
+                    setRoomNotice("This meeting link is invalid or no longer available.");
                 } else {
                     setRoomStatus("valid");
                 }
             })
-            .catch(() => setRoomStatus("valid"));
+            .catch(() => {
+                setRoomStatus("not_found");
+                setRoomNotice("Unable to verify this meeting. Please try again.");
+            });
     }, [meetingId]);
 
     const copyLobbyUrl = () => {
@@ -293,11 +299,11 @@ export default function LobbyScreen({
                             value={participantName}
                             onChange={(e) => setParticipantName(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" && participantName.trim() && roomStatus !== "cancelled") {
+                                if (e.key === "Enter" && participantName.trim() && roomStatus === "valid") {
                                     onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError });
                                 }
                             }}
-                            disabled={roomStatus === "cancelled"}
+                            disabled={roomStatus !== "valid"}
                             placeholder="e.g. Gautam – Physical Design"
                             className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition disabled:opacity-50"
                             autoFocus
@@ -315,10 +321,10 @@ export default function LobbyScreen({
                     <button
                         type="button"
                         onClick={() => onJoin(participantName, { micEnabled: micOn, cameraEnabled: camOn && !camError })}
-                        disabled={joining || !participantName.trim() || roomStatus === "cancelled"}
+                        disabled={joining || !participantName.trim() || roomStatus !== "valid"}
                         className="w-full rounded-2xl bg-blue-600 py-4 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
                     >
-                        {roomStatus === "cancelled" ? (
+                        {roomStatus !== "valid" ? (
                             "Session Unavailable"
                         ) : joining ? (
                             <span className="flex items-center justify-center gap-2">

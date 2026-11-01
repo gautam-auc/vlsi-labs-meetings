@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../../lib/db";
 import { Message } from "../../../../../models/Message";
+import { Meeting } from "../../../../../models/Meeting";
+
+async function getActiveMeeting(meetingId: string) {
+  return Meeting.findOne({ meetingId, status: { $ne: "cancelled" } }).select("_id").lean();
+}
 
 export async function GET(
   _request: Request,
@@ -10,9 +15,17 @@ export async function GET(
     const { meetingId } = await params;
     const cleanId = (meetingId || "").trim().toUpperCase();
 
+    if (!/^VLSI-[A-Z0-9]{8}$/.test(cleanId)) {
+      return NextResponse.json({ error: "Invalid meeting link." }, { status: 400 });
+    }
+
     const db = await connectToDatabase();
     if (!db) {
-      return NextResponse.json({ messages: [], isOffline: true });
+      return NextResponse.json({ error: "Meeting service is temporarily unavailable." }, { status: 503 });
+    }
+
+    if (!(await getActiveMeeting(cleanId))) {
+      return NextResponse.json({ error: "Meeting not found or no longer available." }, { status: 404 });
     }
 
     const messages = await Message.find({ meetingId: cleanId })
@@ -54,26 +67,27 @@ export async function POST(
       );
     }
 
+    if (!/^VLSI-[A-Z0-9]{8}$/.test(cleanId)) {
+      return NextResponse.json({ error: "Invalid meeting link." }, { status: 400 });
+    }
+
+    if (String(text).trim().length > 2000) {
+      return NextResponse.json({ error: "Message cannot exceed 2000 characters." }, { status: 400 });
+    }
+
     const db = await connectToDatabase();
     if (!db) {
-      return NextResponse.json(
-        {
-          message: {
-            id: `${Date.now()}`,
-            senderName: senderName || "Participant",
-            text: text.trim(),
-            time: time || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-          isOffline: true,
-        },
-        { status: 201 }
-      );
+      return NextResponse.json({ error: "Meeting service is temporarily unavailable." }, { status: 503 });
+    }
+
+    if (!(await getActiveMeeting(cleanId))) {
+      return NextResponse.json({ error: "Meeting not found or no longer available." }, { status: 404 });
     }
 
     const created = await Message.create({
       meetingId: cleanId,
-      senderName: senderName || "Participant",
-      senderEmail: senderEmail || "",
+      senderName: String(senderName || "Participant").trim().slice(0, 80) || "Participant",
+      senderEmail: String(senderEmail || "").trim().slice(0, 254),
       text: text.trim(),
       time: time || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });

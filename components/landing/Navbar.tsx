@@ -8,8 +8,7 @@ export default function Navbar() {
     const router = useRouter();
 
     const handleNewMeeting = () => {
-        const randomCode = `vlsi-${Math.random().toString(36).substring(2, 7)}-${Math.random().toString(36).substring(2, 6)}`;
-        router.push(`/meet/${randomCode}`);
+        router.push("/meetings/create");
     };
 
     return (

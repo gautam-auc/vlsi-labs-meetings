@@ -1,26 +1,20 @@
-import { verifyToken } from "./auth";
-
-export function getAdminEmails(): string[] {
-    const envEmails = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-
-    return Array.from(new Set(envEmails));
-}
+import { TokenPayload, verifyToken } from "./auth";
 
 export function isUserAdmin(
-    email?: string | null,
+    _email?: string | null,
     role?: string | null
 ): boolean {
-    if (role === "admin") return true;
-    if (!email) return false;
-    const normalized = email.toLowerCase().trim();
-    // Strict whitelist: Only verified platform admin emails can EVER see or access the admin center
-    return getAdminEmails().includes(normalized);
+    // Authorization comes from a server-issued role, never from a user-supplied
+    // email address or a browser-visible allow-list.
+    return role === "admin";
 }
 
 export function verifyAdminRequest(request: Request): boolean {
+    const payload = getAuthenticatedUser(request);
+    return Boolean(payload && isUserAdmin(payload.email, payload.role));
+}
+
+export function getAuthenticatedUser(request: Request): TokenPayload | null {
     const authHeader = request.headers.get("authorization") || "";
     let token = "";
     if (authHeader.startsWith("Bearer ")) {
@@ -31,11 +25,8 @@ export function verifyAdminRequest(request: Request): boolean {
         const match = cookieHeader.match(/vlsilabs_token=([^;]+)/);
         if (match) token = match[1];
     }
-    if (!token) return false;
+    if (!token) return null;
 
-    const payload = verifyToken(token);
-    if (!payload) return false;
-
-    return isUserAdmin(payload.email, payload.role);
+    return verifyToken(token);
 }
 

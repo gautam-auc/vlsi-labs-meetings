@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { verifyPassword, generateToken } from "../../../../lib/auth";
-import { isUserAdmin } from "../../../../lib/admin";
 
 export async function POST(request: Request) {
   try {
@@ -19,30 +18,10 @@ export async function POST(request: Request) {
     const db = await connectToDatabase();
 
     if (!db) {
-      // Graceful local fallback if MongoDB is not connected yet
-      const normalizedEmail = email.toLowerCase().trim();
-      const fallbackRole = isUserAdmin(normalizedEmail)
-        ? "admin"
-        : "user";
-
-      const token = generateToken({
-        userId: "local-" + Date.now(),
-        email: normalizedEmail,
-        name: email.split("@")[0] || "User",
-        role: fallbackRole,
-      });
-
-      return NextResponse.json({
-        message: "Logged in (Local mode)",
-        user: {
-          name: email.split("@")[0] || "User",
-          email: normalizedEmail,
-          role: fallbackRole,
-          workspace: "VLSI Labs Engineering",
-        },
-        token,
-        isOffline: true,
-      });
+      return NextResponse.json(
+        { error: "Authentication service is temporarily unavailable. Please try again shortly." },
+        { status: 503 }
+      );
     }
 
     const normalizedEmail = email.toLowerCase().trim();

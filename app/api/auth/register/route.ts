@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "../../../../lib/db";
 import { User } from "../../../../models/User";
 import { hashPassword, generateToken } from "../../../../lib/auth";
-import { isUserAdmin } from "../../../../lib/admin";
 
 export async function POST(request: Request) {
   try {
@@ -26,25 +25,9 @@ export async function POST(request: Request) {
     const db = await connectToDatabase();
 
     if (!db) {
-      // Graceful local fallback if MongoDB is not connected yet
-      const token = generateToken({
-        userId: "local-" + Date.now(),
-        email: email.toLowerCase().trim(),
-        name: name.trim(),
-      });
-
       return NextResponse.json(
-        {
-          message: "Account created (Local mode)",
-          user: {
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
-            workspace: workspace || "VLSI Labs Engineering",
-          },
-          token,
-          isOffline: true,
-        },
-        { status: 201 }
+        { error: "Account service is temporarily unavailable. Please try again shortly." },
+        { status: 503 }
       );
     }
 
@@ -58,8 +41,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Strict role allocation: only whitelist gets admin, all other new users get "user"
-    const role = isUserAdmin(normalizedEmail) ? "admin" : "user";
+    // New accounts always start as regular users. Promote administrators only
+    // through a controlled, authenticated administrative workflow.
+    const role = "user";
     const hashedPassword = await hashPassword(password);
     const newUser = await User.create({
       name: name.trim(),

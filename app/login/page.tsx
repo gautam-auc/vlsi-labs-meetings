@@ -4,7 +4,6 @@ import { useState, FormEvent, Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ThemeToggle from "../../components/ThemeToggle";
-import { isUserAdmin } from "../../lib/admin";
 
 function LoginForm() {
     const router = useRouter();
@@ -16,12 +15,8 @@ function LoginForm() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [socialLoading, setSocialLoading] = useState<string | null>(null);
     const [error, setError] = useState("");
     const [showForgotModal, setShowForgotModal] = useState(false);
-    const [socialModalProvider, setSocialModalProvider] = useState<"google" | "github" | "facebook" | null>(null);
-    const [socialEmailInput, setSocialEmailInput] = useState("");
-    const [socialNameInput, setSocialNameInput] = useState("");
 
     // Sync with query params if user navigates
     useEffect(() => {
@@ -50,7 +45,7 @@ function LoginForm() {
             if (data.token) localStorage.setItem("vlsilabs_token", data.token);
             if (data.user?.email) localStorage.setItem("vlsilabs_user_email", data.user.email);
             if (data.user?.name) localStorage.setItem("vlsilabs_user_name", data.user.name);
-            const adminRole = isUserAdmin(data.user?.email, data.user?.role) ? "admin" : "user";
+            const adminRole = data.user?.role === "admin" ? "admin" : "user";
             localStorage.setItem("vlsilabs_user_role", adminRole);
 
             if (isAdminMode && adminRole === "admin") {
@@ -59,92 +54,12 @@ function LoginForm() {
                 router.push("/dashboard");
             }
         } catch {
-            const normalized = email.toLowerCase().trim();
-            const fallbackRole = isUserAdmin(normalized) ? "admin" : (isAdminMode ? "admin" : "user");
-            localStorage.setItem("vlsilabs_user_email", normalized);
-            localStorage.setItem("vlsilabs_user_role", fallbackRole);
-
-            if (isAdminMode) {
-                router.push("/dashboard/admin");
-            } else {
-                router.push("/dashboard");
-            }
+            setError("Unable to reach the authentication service. Please try again.");
         } finally {
             setIsLoading(false);
         }
     }
 
-    async function handleDemoAdminLogin() {
-        setIsLoading(true);
-        try {
-            const res = await fetch("/api/auth/social", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    provider: "google",
-                    email: "agautamauc@gmail.com",
-                    name: "A. Gautam",
-                }),
-            });
-            const data = await res.json();
-            if (data.token) localStorage.setItem("vlsilabs_token", data.token);
-        } catch {}
-        localStorage.setItem("vlsilabs_user_email", "agautamauc@gmail.com");
-        localStorage.setItem("vlsilabs_user_name", "A. Gautam");
-        localStorage.setItem("vlsilabs_user_role", "admin");
-        setTimeout(() => router.push("/dashboard/admin"), 200);
-    }
-
-    function handleDemoUserLogin() {
-        setIsLoading(true);
-        localStorage.setItem("vlsilabs_user_email", "engineer@vlsilabs.ai");
-        localStorage.setItem("vlsilabs_user_name", "VLSI Engineer");
-        localStorage.setItem("vlsilabs_user_role", "user");
-        setTimeout(() => router.push("/dashboard"), 300);
-    }
-
-    async function executeSocialLogin(provider: "google" | "github" | "facebook", targetEmail?: string, targetName?: string) {
-        setSocialLoading(provider);
-        setError("");
-        const chosenEmail = targetEmail || (isAdminMode ? "agautamauc@gmail.com" : "engineer@vlsilabs.ai");
-        const chosenName = targetName || (chosenEmail.includes("@") ? chosenEmail.split("@")[0] : "VLSI Engineer");
-        try {
-            const res = await fetch("/api/auth/social", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ provider, email: chosenEmail, name: chosenName }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Social auth failed.");
-            if (data.token) localStorage.setItem("vlsilabs_token", data.token);
-            if (data.user?.email) localStorage.setItem("vlsilabs_user_email", data.user.email);
-            if (data.user?.name) localStorage.setItem("vlsilabs_user_name", data.user.name);
-            const assignedRole = isUserAdmin(data.user?.email, data.user?.role) ? "admin" : "user";
-            localStorage.setItem("vlsilabs_user_role", assignedRole);
-            setSocialModalProvider(null);
-
-            if (isAdminMode && assignedRole === "admin") {
-                router.push("/dashboard/admin");
-            } else {
-                router.push("/dashboard");
-            }
-        } catch {
-            const normalized = chosenEmail.toLowerCase().trim();
-            const fallbackRole = isUserAdmin(normalized) ? "admin" : (isAdminMode ? "admin" : "user");
-            localStorage.setItem("vlsilabs_user_email", normalized);
-            localStorage.setItem("vlsilabs_user_name", chosenName);
-            localStorage.setItem("vlsilabs_user_role", fallbackRole);
-            setSocialModalProvider(null);
-
-            if (isAdminMode) {
-                router.push("/dashboard/admin");
-            } else {
-                router.push("/dashboard");
-            }
-        } finally {
-            setSocialLoading(null);
-        }
-    }
 
     return (
         <main
@@ -224,16 +139,6 @@ function LoginForm() {
                             </>
                         )}
 
-                        {/* Quick 1-click test button */}
-                        <div className="mt-4 sm:mt-5 flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={isAdminMode ? handleDemoAdminLogin : handleDemoUserLogin}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md hover:bg-white/20 transition cursor-pointer"
-                            >
-                                <span>{isAdminMode ? "⚡ 1-Click Demo Admin" : "⚡ 1-Click Demo User"}</span>
-                            </button>
-                        </div>
                     </div>
 
                     {/* ═══ RIGHT PANEL: Crisp Card with Segmented Switcher, Underline Inputs & Coral Button ═══ */}
@@ -376,21 +281,17 @@ function LoginForm() {
                                 </button>
                             </div>
 
-                            {/* Social Logins */}
+                            {/* Social sign-in will be enabled only with verified OAuth callbacks. */}
                             <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
                                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
-                                    or continue with
+                                    social sign-in coming soon
                                 </p>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setSocialEmailInput(isAdminMode ? "agautamauc@gmail.com" : "engineer@vlsilabs.ai");
-                                            setSocialNameInput(isAdminMode ? "A. Gautam" : "VLSI Engineer");
-                                            setSocialModalProvider("google");
-                                        }}
-                                        disabled={Boolean(socialLoading)}
-                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                                        disabled
+                                        aria-label="Google sign-in is not configured"
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 opacity-70 cursor-not-allowed"
                                     >
                                         <svg className="h-4 w-4" viewBox="0 0 24 24">
                                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -403,13 +304,9 @@ function LoginForm() {
 
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setSocialEmailInput(isAdminMode ? "agautamauc@gmail.com" : "engineer@vlsilabs.ai");
-                                            setSocialNameInput(isAdminMode ? "A. Gautam" : "VLSI Engineer");
-                                            setSocialModalProvider("github");
-                                        }}
-                                        disabled={Boolean(socialLoading)}
-                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                                        disabled
+                                        aria-label="GitHub sign-in is not configured"
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 opacity-70 cursor-not-allowed"
                                     >
                                         <svg className="h-4 w-4 fill-current text-slate-800 dark:text-white" viewBox="0 0 24 24">
                                             <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
@@ -437,7 +334,7 @@ function LoginForm() {
                     <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl text-slate-800 dark:text-white">
                         <h3 className="text-base font-bold">Reset Password</h3>
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                            Password resets require administrator authorization. For fast testing, click below to log in as Demo Admin or Demo User.
+                            Password reset is not configured yet. Please contact your workspace administrator.
                         </p>
                         <div className="mt-5 flex justify-end gap-2">
                             <button
@@ -447,73 +344,11 @@ function LoginForm() {
                             >
                                 Close
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowForgotModal(false);
-                                    handleDemoAdminLogin();
-                                }}
-                                className="rounded-xl bg-[#eb6d6d] hover:bg-[#e05858] px-4 py-2 text-xs font-bold text-white transition cursor-pointer"
-                            >
-                                Use Demo Admin
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ─── Social Provider Modal ─── */}
-            {socialModalProvider && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
-                    <div className="w-full max-w-sm rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl text-slate-800 dark:text-white">
-                        <div className="flex items-center gap-2.5 mb-4">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#eb6d6d]/15 text-lg">🔐</span>
-                            <div>
-                                <h3 className="text-sm font-bold capitalize">Authenticate via {socialModalProvider}</h3>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400">Single Sign-On Authentication</p>
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Email</label>
-                                <input
-                                    type="email"
-                                    value={socialEmailInput}
-                                    onChange={(e) => setSocialEmailInput(e.target.value)}
-                                    placeholder="your@email.com"
-                                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs text-slate-900 dark:text-white outline-none focus:border-[#eb6d6d]"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Full Name</label>
-                                <input
-                                    type="text"
-                                    value={socialNameInput}
-                                    onChange={(e) => setSocialNameInput(e.target.value)}
-                                    placeholder="Your Name"
-                                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3.5 py-2 text-xs text-slate-900 dark:text-white outline-none focus:border-[#eb6d6d]"
-                                />
-                            </div>
-                        </div>
-                        <div className="mt-5 flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setSocialModalProvider(null)}
-                                className="rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => executeSocialLogin(socialModalProvider, socialEmailInput, socialNameInput)}
-                                className="rounded-xl bg-[#eb6d6d] hover:bg-[#e05858] px-4 py-1.5 text-xs font-bold text-white transition cursor-pointer"
-                            >
-                                Continue →
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </main>
     );
 }

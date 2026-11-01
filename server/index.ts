@@ -1,6 +1,19 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
+const ROOM_ID_PATTERN = /^VLSI-[A-Z0-9]{8}$/;
+const allowedOrigins = (process.env.SOCKET_CORS_ORIGINS || "http://localhost:3000,https://vlsi-labs-meetings.vercel.app")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+function socketsShareRoom(sourceId: string, targetId: string): boolean {
+    const source = io.sockets.sockets.get(sourceId);
+    const target = io.sockets.sockets.get(targetId);
+    const roomId = source?.data?.meetingId;
+    return Boolean(roomId && target?.data?.meetingId === roomId);
+}
+
 const httpServer = createServer((req, res) => {
     if (req.url === "/" || req.url === "/health") {
         res.writeHead(200, {
@@ -20,7 +33,7 @@ const httpServer = createServer((req, res) => {
 
 const io = new Server(httpServer, {
     cors: {
-        origin: "*",
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
     },
     pingInterval: 8000,
@@ -40,7 +53,11 @@ io.on("connection", (socket) => {
             participantName: string;
         }) => {
             const cleanMeetingId = (meetingId || "").trim().toUpperCase();
-            const cleanName = (participantName || "Participant").trim();
+            const cleanName = (participantName || "Participant").trim().slice(0, 80) || "Participant";
+            if (!ROOM_ID_PATTERN.test(cleanMeetingId)) {
+                socket.emit("room-error", { message: "Invalid meeting link." });
+                return;
+            }
             console.log(
                 `${cleanName} (${socket.id}) joining meeting ${cleanMeetingId}`
             );
@@ -91,6 +108,7 @@ io.on("connection", (socket) => {
             offer: unknown;
             participantName?: string;
         }) => {
+            if (!target || !socketsShareRoom(socket.id, target)) return;
             io.to(target).emit("offer", {
                 sender: socket.id,
                 offer,
@@ -111,6 +129,7 @@ io.on("connection", (socket) => {
             target: string;
             answer: unknown;
         }) => {
+            if (!target || !socketsShareRoom(socket.id, target)) return;
             io.to(target).emit("answer", {
                 sender: socket.id,
                 answer,
@@ -127,6 +146,7 @@ io.on("connection", (socket) => {
             target: string;
             candidate: unknown;
         }) => {
+            if (!target || !socketsShareRoom(socket.id, target)) return;
             io.to(target).emit(
                 "ice-candidate",
                 {
@@ -145,14 +165,16 @@ io.on("connection", (socket) => {
             text: string;
             time?: string;
         }) => {
-            if (data?.meetingId && data?.text) {
-                socket.to(data.meetingId).emit("chat-message", {
+            const roomId = socket.data?.meetingId;
+            const message = typeof data?.text === "string" ? data.text.trim().slice(0, 2000) : "";
+            if (roomId && message) {
+                socket.to(roomId).emit("chat-message", {
                     id: `${Date.now()}-${socket.id}`,
                     senderName:
                         data.senderName ||
                         socket.data?.participantName ||
                         "Participant",
-                    text: data.text,
+                    text: message,
                     time:
                         data.time ||
                         new Date().toLocaleTimeString([], {
@@ -171,7 +193,7 @@ io.on("connection", (socket) => {
             cameraEnabled?: boolean;
             screenSharing?: boolean;
         }) => {
-            const meetingId = data?.meetingId || socket.data?.meetingId;
+            const meetingId = socket.data?.meetingId;
             if (meetingId) {
                 socket.to(meetingId).emit("media-state", {
                     socketId: socket.id,

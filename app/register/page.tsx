@@ -4,7 +4,6 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "../../components/ThemeToggle";
-import { isUserAdmin } from "../../lib/admin";
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -54,7 +53,7 @@ export default function RegisterPage() {
             if (data.token) localStorage.setItem("vlsilabs_token", data.token);
             if (data.user?.email) localStorage.setItem("vlsilabs_user_email", data.user.email);
             if (data.user?.name) localStorage.setItem("vlsilabs_user_name", data.user.name);
-            const userRole = isUserAdmin(data.user?.email, data.user?.role) ? "admin" : "user";
+            const userRole = data.user?.role === "admin" ? "admin" : "user";
             localStorage.setItem("vlsilabs_user_role", userRole);
 
             setSuccess(true);
@@ -62,17 +61,7 @@ export default function RegisterPage() {
                 router.push("/dashboard");
             }, 800);
         } catch {
-            // Local fallback simulation
-            const normalizedEmail = email.toLowerCase().trim();
-            const fallbackRole = isUserAdmin(normalizedEmail) ? "admin" : "user";
-            localStorage.setItem("vlsilabs_user_email", normalizedEmail);
-            localStorage.setItem("vlsilabs_user_name", fullName);
-            localStorage.setItem("vlsilabs_user_role", fallbackRole);
-
-            setSuccess(true);
-            setTimeout(() => {
-                router.push("/dashboard");
-            }, 800);
+            setError("Unable to reach the account service. Please try again.");
         } finally {
             setIsLoading(false);
         }

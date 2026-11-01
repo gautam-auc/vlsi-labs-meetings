@@ -251,10 +251,9 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/meetings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           title: newMeetingTitle.trim(),
-          hostName: newMeetingHost.trim() || "Admin",
           mode: newMeetingMode,
           date: newMeetingDate,
           time: newMeetingTime,

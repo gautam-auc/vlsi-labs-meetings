@@ -207,8 +207,7 @@ export default function Hero() {
 
     const handleCreateInstantMeeting = () => {
         setIsCreating(true);
-        const randomCode = `vlsi-${Math.random().toString(36).substring(2, 7)}-${Math.random().toString(36).substring(2, 6)}`;
-        router.push(`/meet/${randomCode}`);
+        router.push("/meetings/create");
     };
 
     return (

@@ -15,33 +15,16 @@ export async function GET(
     const db = await connectToDatabase();
 
     if (!db) {
-      // Local/mock fallback: allow joining any valid format meeting ID
-      return NextResponse.json({
-        meeting: {
-          meetingId: cleanId,
-          title: "VLSI Technical Session",
-          status: "upcoming",
-          date: "Today",
-          time: "Now",
-        },
-        isOffline: true,
-      });
+      return NextResponse.json(
+        { error: "Meeting service is temporarily unavailable. Please try again shortly." },
+        { status: 503 }
+      );
     }
 
     const meeting = await Meeting.findOne({ meetingId: cleanId });
 
     if (!meeting) {
-      // Per PDF: allow instant/dynamic meeting links even if not pre-scheduled
-      return NextResponse.json({
-        meeting: {
-          meetingId: cleanId,
-          title: "Ad-hoc VLSI Meeting",
-          status: "upcoming",
-          date: "Today",
-          time: "Now",
-        },
-        isAdHoc: true,
-      });
+      return NextResponse.json({ error: "Meeting not found." }, { status: 404 });
     }
 
     return NextResponse.json({ meeting });

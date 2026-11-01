@@ -27,7 +27,10 @@ export default function MeetingsPage() {
         async function loadMeetings() {
             let apiMeetings: MeetingItem[] = [];
             try {
-                const res = await fetch("/api/meetings");
+                const token = localStorage.getItem("vlsilabs_token");
+                const res = await fetch("/api/meetings", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data.meetings)) {
@@ -44,29 +47,6 @@ export default function MeetingsPage() {
             } catch (err) {
                 console.error("Failed to fetch meetings from API, using local fallback:", err);
             }
-
-            try {
-                const saved = localStorage.getItem("vlsilabs_meetings");
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        const localMapped: MeetingItem[] = parsed.map((m: any) => ({
-                            id: m.id || m.meetingId,
-                            title: m.title || "Custom Meeting",
-                            date: m.date || "Scheduled",
-                            time: m.time || "TBD",
-                            participants: m.participants ? (typeof m.participants === "string" ? m.participants.split(",").map((p: string) => p.trim()) : m.participants) : ["AG"],
-                            status: "upcoming" as const,
-                        }));
-
-                        // Deduplicate by meeting ID
-                        const combined = [...localMapped, ...apiMeetings, ...defaultMeetings];
-                        const unique = combined.filter((m, idx, arr) => arr.findIndex((item) => item.id === m.id) === idx);
-                        if (isMounted) setMeetings(unique);
-                        return;
-                    }
-                }
-            } catch (_) {}
 
             if (isMounted) {
                 const combined = [...apiMeetings, ...defaultMeetings];
@@ -86,7 +66,11 @@ export default function MeetingsPage() {
         setMeetings(updated);
 
         try {
-            await fetch(`/api/meetings/${id}`, { method: "DELETE" });
+            const token = localStorage.getItem("vlsilabs_token");
+            await fetch(`/api/meetings/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
         } catch (err) {
             console.error("API meeting delete error:", err);
         }
