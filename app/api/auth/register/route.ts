@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error: any) {
-    console.error("Registration error:", error);
+    console.error("Registration error:", error?.message, error);
     return NextResponse.json(
       { error: "Failed to create account. Please try again." },
       { status: 500 }

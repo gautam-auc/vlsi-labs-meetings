@@ -60,9 +60,9 @@ export async function POST(request: Request) {
         profilePreferences: user.profilePreferences,
       },
       token,
-    });
+    }, { status: 200 });
   } catch (error: any) {
-    console.error("Login error:", error);
+    console.error("Login error:", error?.message, error);
     return NextResponse.json(
       { error: "Failed to authenticate. Please try again." },
       { status: 500 }
